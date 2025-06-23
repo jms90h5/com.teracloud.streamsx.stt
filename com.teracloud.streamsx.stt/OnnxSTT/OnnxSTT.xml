@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<operatorModel xmlns="http://www.ibm.com/xmlns/prod/streams/spl/operator" 
+               xmlns:cmn="http://www.ibm.com/xmlns/prod/streams/spl/common">
+  <cppOperatorModel>
+    <context>
+      <description>
+        ONNX-based Speech-to-Text operator using ONNX Runtime.
+        This operator provides real-time speech recognition using speech models
+        in ONNX format, with no dependency on WeNet C++ API.
+      </description>
+      <customLiterals>
+        <enumeration>
+          <name>Provider</name>
+          <value>CPU</value>
+          <value>CUDA</value>
+          <value>TensorRT</value>
+        </enumeration>
+      </customLiterals>
+      <libraryDependencies>
+        <library>
+          <cmn:description>S2T Implementation</cmn:description>
+          <cmn:managedLibrary>
+            <cmn:lib>s2t_impl</cmn:lib>
+            <cmn:libPath>../../impl/lib</cmn:libPath>
+            <cmn:includePath>../../impl/include</cmn:includePath>
+          </cmn:managedLibrary>
+        </library>
+        <library>
+          <cmn:description>ONNX Runtime</cmn:description>
+          <cmn:managedLibrary>
+            <cmn:lib>onnxruntime</cmn:lib>
+            <cmn:libPath>../../deps/onnxruntime/lib</cmn:libPath>
+            <cmn:includePath>../../deps/onnxruntime/include</cmn:includePath>
+          </cmn:managedLibrary>
+        </library>
+      </libraryDependencies>
+      <providesSingleThreadedContext>Always</providesSingleThreadedContext>
+    </context>
+    <parameters>
+      <allowAny>false</allowAny>
+      <parameter>
+        <name>encoderModel</name>
+        <description>Path to the encoder ONNX model file</description>
+        <optional>false</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+      </parameter>
+      <parameter>
+        <name>vocabFile</name>
+        <description>Path to the vocabulary file</description>
+        <optional>false</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+      </parameter>
+      <parameter>
+        <name>cmvnFile</name>
+        <description>Path to the CMVN statistics file</description>
+        <optional>false</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+      </parameter>
+      <parameter>
+        <name>sampleRate</name>
+        <description>Audio sample rate (default 16000)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>int32</type>
+      </parameter>
+      <parameter>
+        <name>chunkSizeMs</name>
+        <description>Chunk size in milliseconds (default 100)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>int32</type>
+      </parameter>
+      <parameter>
+        <name>provider</name>
+        <description>ONNX execution provider (CPU, CUDA, TensorRT)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+      </parameter>
+      <parameter>
+        <name>numThreads</name>
+        <description>Number of threads for CPU inference (default 4)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>int32</type>
+      </parameter>
+      <parameter>
+        <name>modelType</name>
+        <description>Model type: CACHE_AWARE_CONFORMER or NEMO_CTC (default CACHE_AWARE_CONFORMER)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+      </parameter>
+      <parameter>
+        <name>blankId</name>
+        <description>Blank token ID for CTC decoding (default 0, NeMo uses 1024)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>int32</type>
+      </parameter>
+      <parameter>
+        <name>streamingMode</name>
+        <description>Enable streaming mode for real-time processing (default false)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>boolean</type>
+      </parameter>
+      <parameter>
+        <name>chunkOverlapMs</name>
+        <description>Overlap between chunks in streaming mode (default 50ms)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>int32</type>
+      </parameter>
+    </parameters>
+    <inputPorts>
+      <inputPortSet>
+        <description>Audio input stream</description>
+        <tupleMutationAllowed>false</tupleMutationAllowed>
+        <windowingMode>NonWindowed</windowingMode>
+        <windowPunctuationInputMode>Oblivious</windowPunctuationInputMode>
+        <cardinality>1</cardinality>
+        <optional>false</optional>
+      </inputPortSet>
+    </inputPorts>
+    <outputPorts>
+      <outputPortSet>
+        <description>Transcription output stream</description>
+        <expressionMode>Nonexistent</expressionMode>
+        <autoAssignment>false</autoAssignment>
+        <completeAssignment>false</completeAssignment>
+        <rewriteAllowed>false</rewriteAllowed>
+        <windowPunctuationOutputMode>Preserving</windowPunctuationOutputMode>
+        <tupleMutationAllowed>true</tupleMutationAllowed>
+        <cardinality>1</cardinality>
+        <optional>false</optional>
+      </outputPortSet>
+    </outputPorts>
+  </cppOperatorModel>
+</operatorModel>

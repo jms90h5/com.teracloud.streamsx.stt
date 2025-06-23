@@ -1,0 +1,50 @@
+// Additional includes for OnnxSTT operator
+#include "../../../impl/include/OnnxSTTInterface.hpp"
+#include "../../../impl/include/StreamingBuffer.hpp"
+#include <memory>
+
+<%SPL::CodeGen::headerPrologue($model);%>
+
+class MY_OPERATOR : public MY_BASE_OPERATOR 
+{
+public:
+    // Constructor
+    MY_OPERATOR();
+    
+    // Destructor
+    virtual ~MY_OPERATOR();
+    
+    // Tuple processing for non-mutating ports
+    void process(Tuple const & tuple, uint32_t port);
+    
+    // Punctuation processing
+    void process(Punctuation const & punct, uint32_t port);
+    
+private:
+    // Mutex for thread safety
+    SPL::Mutex _mutex;
+    
+    // Configuration
+    onnx_stt::OnnxSTTInterface::Config config_;
+    
+    // ONNX-based implementation
+    std::unique_ptr<onnx_stt::OnnxSTTInterface> onnx_impl_;
+    
+    // State tracking
+    bool initialized_;
+    uint64_t audio_timestamp_ms_;
+    uint64_t total_samples_processed_;
+    
+    // Streaming support
+    bool streaming_mode_;
+    int32_t chunk_overlap_ms_;
+    std::unique_ptr<onnx_stt::StreamingBuffer> streaming_buffer_;
+    
+    // Helper methods
+    void initialize();
+    void processAudioData(const SPL::blob& audio_blob);
+    void processStreamingAudio(const float* samples, size_t num_samples);
+    void submitResult(const onnx_stt::OnnxSTTInterface::TranscriptionResult& result);
+};
+
+<%SPL::CodeGen::headerEpilogue($model);%>

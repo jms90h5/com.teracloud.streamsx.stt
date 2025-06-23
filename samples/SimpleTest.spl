@@ -1,0 +1,33 @@
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * Simple NeMo FastConformer Speech-to-Text Test
+ * Expected output: "it was the first great song of his life..."
+ */
+composite SimpleTest {
+    graph
+        // Read audio from librispeech test file
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "../test_data/audio/librispeech-1995-1837-0001.wav";
+                blockSize: 16384u;
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // Perform speech recognition using NeMo FastConformer
+        stream<rstring text> Transcription = NeMoSTT(AudioStream) {
+            param
+                modelPath: "../models/fastconformer_ctc_export/model.onnx";
+                tokensPath: "../models/fastconformer_ctc_export/tokens.txt";
+        }
+        
+        // Display results
+        () as Display = Custom(Transcription) {
+            logic
+                onTuple Transcription: {
+                    printStringLn("SimpleTest Transcription: " + text);
+                }
+        }
+}

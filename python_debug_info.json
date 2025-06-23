@@ -1,0 +1,56 @@
+{
+  "audio_samples": 139680,
+  "sample_rate": 16000,
+  "feature_shape": [
+    874,
+    80
+  ],
+  "feature_min": -10.779931901192162,
+  "feature_max": 6.6778884936475675,
+  "feature_mean": -3.9119197961512864,
+  "model_input_shape": [
+    1,
+    80,
+    874
+  ],
+  "output_shape": [
+    1,
+    111,
+    1025
+  ],
+  "unique_predictions": [
+    1,
+    2,
+    4,
+    9,
+    15,
+    18,
+    20,
+    24,
+    28,
+    34,
+    39,
+    46,
+    70,
+    81,
+    94,
+    100,
+    170,
+    188,
+    242,
+    261,
+    273,
+    278,
+    280,
+    316,
+    417,
+    444,
+    540,
+    547,
+    605,
+    727,
+    860,
+    1024
+  ],
+  "transcription": "it was the first great sorrow of his life it was not so much the loss of the cotton itself but the fantasy the hopes the dreams built around it"
+}

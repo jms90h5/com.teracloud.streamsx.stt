@@ -1,0 +1,30 @@
+namespace test.nemo;
+
+use com.teracloud.streamsx.stt::*;
+
+composite TestNeMo {
+    graph
+        // Simple beacon to trigger one test
+        stream<blob audioChunk> TestAudio = Beacon() {
+            param
+                iterations: 1u;
+            output TestAudio:
+                // Create empty blob for testing
+                audioChunk = (blob)[16000bu];
+        }
+        
+        // Test NeMoSTT operator
+        stream<rstring text> Transcription = NeMoSTT(TestAudio) {
+            param
+                modelPath: "../models/fastconformer_ctc_export/model.onnx";
+                tokensPath: "../models/fastconformer_ctc_export/tokens.txt";
+        }
+        
+        // Display results
+        () as Display = Custom(Transcription) {
+            logic
+                onTuple Transcription: {
+                    printStringLn("NeMo Test Result: " + text);
+                }
+        }
+}

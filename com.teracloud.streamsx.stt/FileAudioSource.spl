@@ -1,0 +1,67 @@
+namespace com.teracloud.streamsx.stt;
+
+/**
+ * FileAudioSource operator for reading audio data from files
+ * 
+ * This operator reads raw binary audio data from a file using FileSource's block format
+ * and produces a stream of audio chunks suitable for speech recognition.
+ * 
+ * @output AudioStream
+ * Stream of audio chunks with timestamps
+ * 
+ * @param filename
+ * The path to the audio file to read
+ * 
+ * @param blockSize
+ * The size of each audio chunk in bytes (default: 3200 for 100ms of 16kHz 16-bit mono audio)
+ * 
+ * @param sampleRate
+ * The sample rate of the audio in Hz (used for timestamp calculation)
+ * 
+ * @param bitsPerSample
+ * The number of bits per audio sample (used for timestamp calculation)
+ * 
+ * @param channelCount
+ * The number of audio channels (used for timestamp calculation)
+ */
+public composite FileAudioSource(output AudioStream) {
+    param
+        expression<rstring> $filename;
+        expression<uint32> $blockSize: 3200u;  // 100ms of 16kHz 16-bit mono audio
+        expression<int32> $sampleRate: 16000;
+        expression<int32> $bitsPerSample: 16;
+        expression<int32> $channelCount: 1;
+    
+    type
+        AudioChunkType = tuple<blob audioChunk, uint64 audioTimestamp>;
+        
+    graph
+        // Read raw audio data from file in fixed-size blocks
+        stream<blob data> RawAudioBlocks = FileSource() {
+            param
+                file: $filename;
+                format: block;
+                blockSize: $blockSize;
+        }
+        
+        // Convert raw blocks to audio chunks with timestamps
+        stream<AudioChunkType> AudioStream = Custom(RawAudioBlocks) {
+            logic
+                state: {
+                    mutable uint64 currentSample = 0ul;
+                    uint32 bytesPerSample = (uint32)($bitsPerSample / 8 * $channelCount);
+                    uint32 samplesPerBlock = $blockSize / bytesPerSample;
+                }
+                
+                onTuple RawAudioBlocks: {
+                    // Submit the audio chunk with timestamp
+                    submit({
+                        audioChunk = RawAudioBlocks.data,
+                        audioTimestamp = (currentSample * 1000ul) / (uint64)$sampleRate
+                    }, AudioStream);
+                    
+                    // Update sample counter for next chunk
+                    currentSample += (uint64)samplesPerBlock;
+                }
+        }
+}

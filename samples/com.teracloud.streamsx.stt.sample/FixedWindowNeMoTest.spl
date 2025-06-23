@@ -1,0 +1,140 @@
+namespace com.teracloud.streamsx.stt.sample;
+
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * Fixed Window NeMo Test - Properly accumulates audio chunks
+ * 
+ * This sample fixes the windowing issue by accumulating all audio chunks
+ * in a window, not just the last one.
+ */
+composite FixedWindowNeMoTest {
+    graph
+        // Audio source - reads from test file
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/test_data/audio/librispeech-1995-1837-0001.wav";
+                blockSize: 16384u;  // 1 second chunks
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // Debug: Show audio chunks
+        () as AudioDebug = Custom(AudioStream) {
+            logic
+                state: {
+                    mutable int32 chunkCount = 0;
+                }
+                onTuple AudioStream: {
+                    chunkCount++;
+                    printStringLn("Audio chunk " + (rstring)chunkCount + ": " + 
+                                 (rstring)size(audioChunk) + " bytes at timestamp " + 
+                                 (rstring)audioTimestamp);
+                }
+                onPunct AudioStream: {
+                    printStringLn("Audio stream punctuation: " + (rstring)currentPunct());
+                }
+        }
+        
+        // Custom operator to accumulate and forward audio chunks with window markers
+        stream<blob audioChunk, uint64 audioTimestamp> AccumulatedAudio = Custom(AudioStream) {
+            logic
+                state: {
+                    mutable list<blob> accumulator = [];
+                    mutable int32 chunkCount = 0;
+                    mutable uint64 lastTimestamp = 0ul;
+                }
+                onTuple AudioStream: {
+                    // Accumulate chunks
+                    appendM(accumulator, audioChunk);
+                    lastTimestamp = audioTimestamp;
+                    chunkCount++;
+                    
+                    // Every 5 chunks (5 seconds), send accumulated audio
+                    if (chunkCount >= 5) {
+                        // Concatenate all accumulated chunks
+                        mutable list<uint8> combinedData = [];
+                        for (blob chunk in accumulator) {
+                            mutable list<uint8> chunkData = [];
+                            for (int32 i in range(size(chunk))) {
+                                appendM(chunkData, chunk[i]);
+                            }
+                            combinedData += chunkData;
+                        }
+                        
+                        // Convert back to blob
+                        mutable blob combined = [];
+                        for (uint8 byte in combinedData) {
+                            appendM(combined, byte);
+                        }
+                        
+                        printStringLn(">>> Sending accumulated audio: " + (rstring)size(combined) + " bytes");
+                        submit({audioChunk = combined, audioTimestamp = lastTimestamp}, AccumulatedAudio);
+                        
+                        // Send window marker
+                        submit(Sys.WindowMarker, AccumulatedAudio);
+                        
+                        // Reset accumulator
+                        clearM(accumulator);
+                        chunkCount = 0;
+                    }
+                }
+                onPunct AudioStream: {
+                    // On final marker, send any remaining audio
+                    if (currentPunct() == Sys.FinalMarker && size(accumulator) > 0) {
+                        // Concatenate remaining chunks
+                        mutable list<uint8> combinedData = [];
+                        for (blob chunk in accumulator) {
+                            mutable list<uint8> chunkData = [];
+                            for (int32 i in range(size(chunk))) {
+                                appendM(chunkData, chunk[i]);
+                            }
+                            combinedData += chunkData;
+                        }
+                        
+                        // Convert back to blob
+                        mutable blob combined = [];
+                        for (uint8 byte in combinedData) {
+                            appendM(combined, byte);
+                        }
+                        
+                        printStringLn(">>> Sending final audio: " + (rstring)size(combined) + " bytes");
+                        submit({audioChunk = combined, audioTimestamp = lastTimestamp}, AccumulatedAudio);
+                        submit(Sys.WindowMarker, AccumulatedAudio);
+                    }
+                    
+                    // Forward the punctuation
+                    submit(currentPunct(), AccumulatedAudio);
+                }
+        }
+        
+        // NeMo speech recognition
+        stream<rstring transcription> Transcription = NeMoSTT(AccumulatedAudio) {
+            param
+                modelPath: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/models/fastconformer_ctc_export/model.onnx";
+                tokensPath: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/models/fastconformer_ctc_export/tokens_with_ids.txt";
+        }
+        
+        // Display transcription results
+        () as Display = Custom(Transcription) {
+            logic
+                state: {
+                    mutable int32 transcriptionCount = 0;
+                }
+                onTuple Transcription: {
+                    transcriptionCount++;
+                    printStringLn("=========================================");
+                    printStringLn("✅ TRANSCRIPTION #" + (rstring)transcriptionCount + ":");
+                    printStringLn(transcription);
+                    printStringLn("=========================================");
+                }
+        }
+        
+        // Save transcription to file
+        () as FileWriter = FileSink(Transcription) {
+            param
+                file: "FixedWindowNeMoTest_transcript_" + (rstring)getTimestampInSecs() + ".txt";
+                format: txt;
+        }
+}

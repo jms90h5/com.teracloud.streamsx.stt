@@ -1,0 +1,71 @@
+namespace com.teracloud.streamsx.stt.sample;
+
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * NeMo FastConformer CTC Sample
+ * 
+ * Demonstrates the exported NeMo FastConformer model with CTC output.
+ * This sample uses the new NEMO_CTC model type in OnnxSTTImpl.
+ */
+composite NeMoCTCSample {
+    graph
+        // Read test audio file
+        stream<blob audioData> AudioFile = FileSource() {
+            param
+                file: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/test_data/audio/librispeech_3sec.wav";
+                format: block;
+                blockSize: 48000u;  // 3 seconds at 16kHz
+        }
+        
+        // Convert to audio stream format expected by STT
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = Custom(AudioFile) {
+            logic
+                state: {
+                    mutable uint64 currentTime = 0ul;
+                }
+                onTuple AudioFile: {
+                    // Output audio chunk with timestamp
+                    submit({
+                        audioChunk = audioData,
+                        audioTimestamp = currentTime
+                    }, AudioStream);
+                    
+                    // Advance timestamp (3 seconds)
+                    currentTime += 3000ul;
+                }
+        }
+        
+        // Use OnnxSTT operator with NeMo CTC configuration
+        stream<rstring text, boolean isFinal, float64 confidence> TranscriptionStream = OnnxSTT(AudioStream) {
+            param
+                encoderModel: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/models/fastconformer_nemo_export/ctc_model.onnx";
+                vocabFile: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/models/fastconformer_nemo_export/tokens.txt";
+                cmvnFile: "none";  // No CMVN for NeMo CTC
+                modelType: "NEMO_CTC";  // Use new model type
+                blankId: 1024;  // NeMo CTC blank token
+                sampleRate: 16000;
+                provider: "CPU";
+                numThreads: 4;
+        }
+        
+        // Display results
+        () as Display = Custom(TranscriptionStream) {
+            logic
+                onTuple TranscriptionStream: {
+                    printStringLn("=== NeMo CTC Transcription ===");
+                    printStringLn("Text: " + text);
+                    printStringLn("Is Final: " + (rstring)isFinal);
+                    printStringLn("Confidence: " + (rstring)confidence);
+                    printStringLn("Expected: 'it was the first great'");
+                    printStringLn("=============================");
+                }
+        }
+        
+        // Save to file  
+        () as FileWriter = FileSink(TranscriptionStream) {
+            param
+                file: "nemo_ctc_output.txt";
+                format: txt;
+        }
+}

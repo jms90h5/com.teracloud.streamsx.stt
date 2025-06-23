@@ -1,0 +1,66 @@
+namespace com.teracloud.streamsx.stt.sample;
+
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * Direct NeMo Test - No windowing, direct processing like checkpoint
+ * 
+ * Based on the working checkpoint BasicNeMoTest pattern
+ */
+composite DirectNeMoTest {
+    graph
+        // Audio source - reads from test file
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/test_data/audio/librispeech-1995-1837-0001.wav";
+                blockSize: 16384u;  // 1 second chunks
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // Debug: Show audio chunks
+        () as AudioDebug = Custom(AudioStream) {
+            logic
+                state: {
+                    mutable int32 chunkCount = 0;
+                }
+                onTuple AudioStream: {
+                    chunkCount++;
+                    printStringLn("Audio chunk " + (rstring)chunkCount + ": " + 
+                                 (rstring)size(audioChunk) + " bytes");
+                }
+                onPunct AudioStream: {
+                    printStringLn("Audio punctuation: " + (rstring)currentPunct());
+                }
+        }
+        
+        // Direct NeMo speech recognition - no windowing
+        stream<rstring transcription> Transcription = NeMoSTT(AudioStream) {
+            param
+                modelPath: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/models/fastconformer_ctc_export/model.onnx";
+                tokensPath: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/models/fastconformer_ctc_export/tokens_with_ids.txt";
+        }
+        
+        // Display transcription results
+        () as Display = Custom(Transcription) {
+            logic
+                state: {
+                    mutable int32 transcriptionCount = 0;
+                }
+                onTuple Transcription: {
+                    transcriptionCount++;
+                    printStringLn("=========================================");
+                    printStringLn("✅ TRANSCRIPTION #" + (rstring)transcriptionCount + ":");
+                    printStringLn(transcription);
+                    printStringLn("=========================================");
+                }
+        }
+        
+        // Save transcription to file
+        () as FileWriter = FileSink(Transcription) {
+            param
+                file: "DirectNeMoTest_transcript_" + (rstring)getTimestampInSecs() + ".txt";
+                format: txt;
+        }
+}

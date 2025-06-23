@@ -1,0 +1,10 @@
+# Vendor binaries and large model artifacts
+deps/onnxruntime/lib/
+*.nemo
+models/
+models_backup*/
+extracted_fastconformer/
+fastconformer_ctc_onnx/
+debug_extract/
+fastconformer_export_full/
+samples/output/

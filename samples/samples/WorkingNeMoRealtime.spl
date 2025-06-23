@@ -1,0 +1,47 @@
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * Real-time speech recognition using NVidia NeMo FastConformer
+ * 
+ * Working sample adapted for the large FastConformer model.
+ */
+composite WorkingNeMoRealtime {
+    param
+        expression<rstring> $nemoModel : "../models/fastconformer_ctc_export/model.onnx";
+        
+    graph
+        // Audio source - reads real audio files from test data
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "../test_data/audio/librispeech-1995-1837-0001.wav";
+                blockSize: 16384u;  // 1 second chunks
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // NeMo-based speech recognition
+        stream<rstring text, boolean isFinal, float64 confidence> 
+            NeMoTranscription = NeMoSTT(AudioStream) {
+            param
+                modelPath: $nemoModel;
+                tokensPath: "../models/fastconformer_ctc_export/tokens.txt";
+        }
+        
+        // Display results
+        () as NeMoResultDisplay = Custom(NeMoTranscription) {
+            logic
+                onTuple NeMoTranscription: {
+                    printStringLn("NeMo Transcription: " + text + 
+                                 (isFinal ? " (FINAL)" : " ...") +
+                                 " [conf: " + (rstring)(confidence * 100.0) + "%]");
+                }
+        }
+        
+        // Write results to file
+        () as NeMoFileWriter = FileSink(NeMoTranscription) {
+            param
+                file: "working_nemo_results.txt";
+                format: txt;
+        }
+}

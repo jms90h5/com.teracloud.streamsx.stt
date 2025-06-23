@@ -1,0 +1,56 @@
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * Basic NeMo CTC Speech-to-Text Demo
+ * 
+ * Simple demonstration of the working NeMo FastConformer implementation.
+ * This shows the minimal configuration needed to get speech recognition working.
+ * Supports optional real-time throttling.
+ */
+composite BasicNeMoDemo {
+    param
+        expression<boolean> $enableThrottling : false;  // Default: full speed processing
+        
+    graph
+        // Simple audio source - reads from test file
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "../test_data/audio/librispeech-1995-1837-0001.wav";
+                blockSize: 16384u;  // 1 second chunks
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // Optional throttling for real-time processing
+        stream<blob audioChunk, uint64 audioTimestamp> ProcessedAudio = 
+            $enableThrottling ? 
+                Throttle(AudioStream) { 
+                    param 
+                        rate: 1.0;     // 1 tuple per second (real-time for 1-second chunks)
+                        precise: true; // Accurate timing
+                } :
+                AudioStream;
+        
+        // NeMo speech recognition with minimal configuration
+        stream<rstring transcription> Transcription = NeMoSTT(ProcessedAudio) {
+            param
+                modelPath: "../models/fastconformer_ctc_export/model.onnx";
+                tokensPath: "../models/fastconformer_ctc_export/tokens.txt";
+        }
+        
+        // Display results and save to file
+        () as Display = Custom(Transcription) {
+            logic
+                onTuple Transcription: {
+                    printStringLn("BasicNeMoDemo Transcription: " + transcription);
+                }
+        }
+        
+        // Save transcription to distinctly named file
+        () as FileWriter = FileSink(Transcription) {
+            param
+                file: "BasicNeMoDemo_transcript_" + (rstring)getTimestampInSecs() + ".txt";
+                format: txt;
+        }
+}

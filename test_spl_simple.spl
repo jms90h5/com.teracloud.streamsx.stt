@@ -1,0 +1,51 @@
+namespace test.simple;
+
+use com.teracloud.streamsx.stt::*;
+
+composite TestSimple {
+    graph
+        // Read audio file
+        stream<blob audioData> AudioFile = FileSource() {
+            param
+                file: "test_data/audio/librispeech-1995-1837-0001.wav";
+                format: blob;
+        }
+        
+        // Convert to audio chunks
+        stream<AudioChunk> AudioChunks = Custom(AudioFile) {
+            logic
+                onTuple AudioFile: {
+                    // Read WAV header and extract audio
+                    blob wavData = audioData;
+                    uint32 dataOffset = 44u; // Standard WAV header size
+                    
+                    if (size(wavData) > dataOffset) {
+                        // Extract raw audio data (skip WAV header)
+                        blob rawAudio = wavData[dataOffset:size(wavData)-1u];
+                        
+                        // Create audio chunk
+                        mutable AudioChunk chunk = {};
+                        chunk.audioChunk = rawAudio;
+                        chunk.audioTimestamp = 0ul;
+                        
+                        submit(chunk, AudioChunks);
+                    }
+                }
+        }
+        
+        // Transcribe using OnnxSTT
+        stream<TranscriptionResult> Transcription = OnnxSTT(AudioChunks) {
+            param
+                modelPath: getThisToolkitDir() + "/../models/fastconformer_nemo_export/ctc_model.onnx";
+                vocabularyPath: getThisToolkitDir() + "/../models/fastconformer_nemo_export/tokens.txt";
+                modelType: "nemo_ctc";
+        }
+        
+        // Print results
+        () as Printer = Custom(Transcription) {
+            logic
+                onTuple Transcription: {
+                    println("Transcription: " + transcription);
+                }
+        }
+}

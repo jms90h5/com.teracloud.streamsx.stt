@@ -1,0 +1,9 @@
+{
+  "inter_op_num_threads": 1,
+  "intra_op_num_threads": 1,
+  "graph_optimization_level": "ORT_ENABLE_EXTENDED",
+  "providers": [
+    "CPUExecutionProvider"
+  ],
+  "onnx_version": "1.19.2"
+}

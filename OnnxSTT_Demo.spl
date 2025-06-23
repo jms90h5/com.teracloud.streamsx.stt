@@ -1,0 +1,125 @@
+use streamsx.stt::*;
+
+/**
+ * Real-time speech recognition using NVidia NeMo cache-aware Conformer
+ * 
+ * This demonstrates the advanced STT pipeline with:
+ * - NVidia NeMo FastConformer-Hybrid model
+ * - Voice Activity Detection (VAD) preprocessing
+ * - Advanced feature extraction with kaldifeat
+ * - Cache-aware streaming for optimal latency
+ */
+composite NeMoRealtime {
+    param
+        expression<rstring> $nemoModel : "../../models/nemo_fastconformer_streaming/fastconformer_streaming.onnx";
+        expression<boolean> $enableVAD : true;
+        
+    graph
+        // Audio source - reads real audio files from test data
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "../../test_data/audio/librispeech-1995-1837-0001.raw";
+                blockSize: 2560u;  // 160ms chunks for NeMo (16 frames * 10ms)
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // NeMo-based speech recognition with modern pipeline
+        stream<rstring text, boolean isFinal, float64 confidence, boolean speechDetected, 
+               uint64 vadLatency, uint64 featureLatency, uint64 modelLatency> 
+            NeMoTranscription = OnnxSTT(AudioStream) {
+            param
+                // NeMo model configuration
+                encoderModel: $nemoModel;  // Single ONNX file for NeMo
+                modelType: "NeMoCacheAwareConformer";
+                
+                // Pipeline configuration
+                enableVAD: $enableVAD;
+                vadThreshold: 0.5;
+                
+                // Feature extraction
+                featureType: "kaldifeat";  // Use kaldifeat for production quality
+                numMelBins: 80;
+                frameLength: 25;  // 25ms frames
+                frameShift: 10;   // 10ms shift
+                
+                // Model parameters
+                chunkFrames: 16;  // NeMo default chunk size
+                sampleRate: 16000;
+                provider: "CPU";
+                numThreads: 4;
+                
+                // Attention context (latency control)
+                attContextLeft: 70;
+                attContextRight: 0;  // 0ms latency mode
+        }
+        
+        // Enhanced results display with pipeline metrics
+        () as NeMoResultDisplay = Custom(NeMoTranscription) {
+            logic
+                state: {
+                    mutable uint64 resultCount = 0ul;
+                    mutable uint64 speechChunks = 0ul;
+                    mutable uint64 silenceChunks = 0ul;
+                    mutable uint64 totalVadLatency = 0ul;
+                    mutable uint64 totalFeatureLatency = 0ul;
+                    mutable uint64 totalModelLatency = 0ul;
+                    mutable uint64 minLatency = 999999ul;
+                    mutable uint64 maxLatency = 0ul;
+                }
+                
+                onTuple NeMoTranscription: {
+                    // Display transcription with VAD status
+                    printStringLn("[" + (speechDetected ? "SPEECH" : "SILENCE") + "] " +
+                                 text + 
+                                 (isFinal ? " (FINAL)" : " ...") +
+                                 " [conf: " + (rstring)(confidence * 100.0) + "%]");
+                    
+                    // Update statistics
+                    resultCount++;
+                    if (speechDetected) {
+                        speechChunks++;
+                    } else {
+                        silenceChunks++;
+                    }
+                    
+                    // Accumulate latency metrics
+                    totalVadLatency += vadLatency;
+                    totalFeatureLatency += featureLatency;
+                    totalModelLatency += modelLatency;
+                    
+                    uint64 totalLatency = vadLatency + featureLatency + modelLatency;
+                    if (totalLatency < minLatency) minLatency = totalLatency;
+                    if (totalLatency > maxLatency) maxLatency = totalLatency;
+                    
+                    // Show detailed performance summary every 20 results
+                    if (resultCount % 20ul == 0ul) {
+                        printStringLn("\n=== NeMo Pipeline Performance ===");
+                        printStringLn("Total results: " + (rstring)resultCount);
+                        printStringLn("Speech chunks: " + (rstring)speechChunks + 
+                                     " (" + (rstring)((speechChunks * 100ul) / resultCount) + "%)");
+                        printStringLn("Silence chunks: " + (rstring)silenceChunks);
+                        
+                        if (resultCount > 0ul) {
+                            printStringLn("Average VAD latency: " + (rstring)(totalVadLatency / resultCount) + "ms");
+                            printStringLn("Average feature latency: " + (rstring)(totalFeatureLatency / resultCount) + "ms");
+                            printStringLn("Average model latency: " + (rstring)(totalModelLatency / resultCount) + "ms");
+                            printStringLn("Total average latency: " + (rstring)((totalVadLatency + totalFeatureLatency + totalModelLatency) / resultCount) + "ms");
+                            printStringLn("Latency range: " + (rstring)minLatency + "-" + (rstring)maxLatency + "ms");
+                        }
+                        
+                        printStringLn("Pipeline: VAD → Kaldifeat → NeMo FastConformer");
+                        printStringLn("Model: Cache-aware streaming (0ms latency mode)\n");
+                    }
+                }
+        }
+        
+        // Write enhanced results to CSV for analysis
+        () as NeMoFileWriter = FileSink(NeMoTranscription) {
+            param
+                file: "nemo_transcription_results.csv";
+                format: csv;
+                quoteStrings: true;
+        }
+}

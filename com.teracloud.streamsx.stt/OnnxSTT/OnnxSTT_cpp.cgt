@@ -1,0 +1,220 @@
+/*
+ * OnnxSTT operator implementation
+ */
+
+<%SPL::CodeGen::implementationPrologue($model);%>
+
+<%
+    my $encoderModel = $model->getParameterByName("encoderModel")->getValueAt(0)->getCppExpression();
+    my $vocabFile = $model->getParameterByName("vocabFile")->getValueAt(0)->getCppExpression();
+    my $cmvnFile = $model->getParameterByName("cmvnFile")->getValueAt(0)->getCppExpression();
+    
+    my $sampleRate = $model->getParameterByName("sampleRate");
+    $sampleRate = $sampleRate ? $sampleRate->getValueAt(0)->getCppExpression() : "16000";
+    
+    my $chunkSizeMs = $model->getParameterByName("chunkSizeMs");
+    $chunkSizeMs = $chunkSizeMs ? $chunkSizeMs->getValueAt(0)->getCppExpression() : "100";
+    
+    my $numThreads = $model->getParameterByName("numThreads");
+    $numThreads = $numThreads ? $numThreads->getValueAt(0)->getCppExpression() : "4";
+    
+    my $provider = $model->getParameterByName("provider");
+    my $useGpu = "false";
+    if ($provider && $provider->getValueAt(0)->getSPLExpression() ne "CPU") {
+        $useGpu = "true";
+    }
+    
+    my $modelType = $model->getParameterByName("modelType");
+    $modelType = $modelType ? $modelType->getValueAt(0)->getCppExpression() : "\"CACHE_AWARE_CONFORMER\"";
+    
+    my $blankId = $model->getParameterByName("blankId");
+    $blankId = $blankId ? $blankId->getValueAt(0)->getCppExpression() : "0";
+    
+    my $streamingMode = $model->getParameterByName("streamingMode");
+    $streamingMode = $streamingMode ? $streamingMode->getValueAt(0)->getCppExpression() : "false";
+    
+    my $chunkOverlapMs = $model->getParameterByName("chunkOverlapMs");
+    $chunkOverlapMs = $chunkOverlapMs ? $chunkOverlapMs->getValueAt(0)->getCppExpression() : "50";
+%>
+
+// Implementation code starts here
+#include <SPL/Runtime/Common/ApplicationRuntimeMessage.h>
+#include <SPL/Runtime/Utility/LogTraceMessage.h>
+#include <iostream>
+#include <vector>
+
+using namespace SPL;
+using namespace std;
+
+// Using the SPL-generated namespace and class names
+
+MY_OPERATOR::MY_OPERATOR() 
+    : initialized_(false)
+    , audio_timestamp_ms_(0)
+    , total_samples_processed_(0)
+    , streaming_mode_(<%=$streamingMode%>)
+    , chunk_overlap_ms_(<%=$chunkOverlapMs%>) {
+    
+    SPLAPPTRC(L_DEBUG, "OnnxSTT operator constructor", "OnnxSTT");
+    SPLAPPTRC(L_DEBUG, "Streaming mode: " + std::string(streaming_mode_ ? "enabled" : "disabled"), "OnnxSTT");
+}
+
+MY_OPERATOR::~MY_OPERATOR() {
+    SPLAPPTRC(L_DEBUG, "OnnxSTT operator destructor", "OnnxSTT");
+}
+
+void MY_OPERATOR::initialize() {
+    if (initialized_) return;
+    
+    try {
+        // Configure ONNX implementation
+        config_.encoder_onnx_path = <%=$encoderModel%>;
+        config_.vocab_path = <%=$vocabFile%>;
+        
+        // Handle "none" for CMVN path (NeMo models don't use CMVN)
+        std::string cmvnPath = <%=$cmvnFile%>;
+        if (cmvnPath != "none") {
+            config_.cmvn_stats_path = cmvnPath;
+        } else {
+            config_.cmvn_stats_path = "";  // Empty string indicates no CMVN
+        }
+        
+        config_.sample_rate = <%=$sampleRate%>;
+        config_.chunk_size_ms = <%=$chunkSizeMs%>;
+        config_.num_threads = <%=$numThreads%>;
+        config_.use_gpu = <%=$useGpu%>;
+        
+        // Set model type
+        std::string modelTypeStr = <%=$modelType%>;
+        if (modelTypeStr == "NEMO_CTC") {
+            config_.model_type = onnx_stt::OnnxSTTInterface::ModelType::NEMO_CTC;
+        } else {
+            config_.model_type = onnx_stt::OnnxSTTInterface::ModelType::CACHE_AWARE_CONFORMER;
+        }
+        
+        // Set blank ID for CTC decoding
+        config_.blank_id = <%=$blankId%>;
+        
+        SPLAPPTRC(L_INFO, "Initializing OnnxSTT with model: " + config_.encoder_onnx_path + 
+                          ", type: " + modelTypeStr + ", blank_id: " + std::to_string(config_.blank_id), "OnnxSTT");
+        SPLAPPTRC(L_DEBUG, "CMVN path: " + (config_.cmvn_stats_path.empty() ? "none" : config_.cmvn_stats_path), "OnnxSTT");
+        SPLAPPTRC(L_DEBUG, "Sample rate: " + std::to_string(config_.sample_rate) + 
+                          ", chunk size: " + std::to_string(config_.chunk_size_ms) + "ms", "OnnxSTT");
+        
+        // Create implementation
+        onnx_impl_ = onnx_stt::createOnnxSTT(config_);
+        
+        // Initialize
+        if (!onnx_impl_->initialize()) {
+            SPLAPPTRC(L_ERROR, "Failed to initialize OnnxSTT", "OnnxSTT");
+            throw std::runtime_error("OnnxSTT initialization failed");
+        }
+        
+        // Initialize streaming buffer if in streaming mode
+        if (streaming_mode_) {
+            size_t chunk_samples = (config_.chunk_size_ms * config_.sample_rate) / 1000;
+            size_t overlap_samples = (chunk_overlap_ms_ * config_.sample_rate) / 1000;
+            size_t buffer_capacity = chunk_samples * 10; // Buffer up to 10 chunks
+            
+            streaming_buffer_ = std::make_unique<onnx_stt::StreamingBuffer>(
+                buffer_capacity, chunk_samples, overlap_samples);
+            
+            SPLAPPTRC(L_INFO, "Streaming buffer initialized: chunk=" + std::to_string(chunk_samples) + 
+                             " samples, overlap=" + std::to_string(overlap_samples) + " samples", "OnnxSTT");
+        }
+        
+        initialized_ = true;
+        SPLAPPTRC(L_INFO, "OnnxSTT initialized successfully", "OnnxSTT");
+        
+    } catch (const std::exception& e) {
+        SPLAPPTRC(L_ERROR, "Exception during initialization: " + string(e.what()), "OnnxSTT");
+        throw;
+    }
+}
+
+void MY_OPERATOR::process(Tuple const & tuple, uint32_t port) {
+    // Initialize on first tuple
+    if (!initialized_) {
+        initialize();
+    }
+    
+    AutoPortMutex apm(_mutex, *this);
+    
+    const IPort0Type& iport = static_cast<const IPort0Type&>(tuple);
+    
+    // Get audio data
+    processAudioData(iport.get_audioChunk());
+    
+    // Get timestamp
+    audio_timestamp_ms_ = iport.get_audioTimestamp();
+}
+
+void MY_OPERATOR::processAudioData(const SPL::blob& audio_blob) {
+    // Get audio samples
+    const int16_t* samples = reinterpret_cast<const int16_t*>(audio_blob.getData());
+    size_t num_samples = audio_blob.getSize() / sizeof(int16_t);
+    
+    if (num_samples == 0) return;
+    
+    SPLAPPTRC(L_DEBUG, "Processing audio chunk: " + std::to_string(num_samples) + 
+                      " samples at timestamp " + std::to_string(audio_timestamp_ms_) + "ms", "OnnxSTT");
+    
+    // Process with ONNX implementation
+    auto result = onnx_impl_->processAudioChunk(samples, num_samples, audio_timestamp_ms_);
+    
+    // Update stats
+    total_samples_processed_ += num_samples;
+    audio_timestamp_ms_ += (num_samples * 1000) / config_.sample_rate;
+    
+    // Submit result if we have text
+    if (!result.text.empty()) {
+        SPLAPPTRC(L_DEBUG, "Transcription result: \"" + result.text + 
+                          "\" (confidence: " + std::to_string(result.confidence) + ")", "OnnxSTT");
+        submitResult(result);
+    }
+    
+    // Log performance periodically
+    if (total_samples_processed_ % (config_.sample_rate * 10) == 0) {
+        auto stats = onnx_impl_->getStats();
+        SPLAPPTRC(L_INFO, 
+            "Processed " + to_string(total_samples_processed_ / config_.sample_rate) + 
+            " seconds, RTF: " + to_string(stats.real_time_factor), 
+            "OnnxSTT");
+    }
+}
+
+void MY_OPERATOR::submitResult(const onnx_stt::OnnxSTTInterface::TranscriptionResult& result) {
+    // Create output tuple
+    OPort0Type otuple;
+    
+    // Set attributes based on output schema: text, isFinal, confidence
+    otuple.set_text(result.text);
+    otuple.set_isFinal(result.is_final);
+    otuple.set_confidence(result.confidence);
+    
+    // Submit the tuple
+    submit(otuple, 0);
+    
+    SPLAPPTRC(L_DEBUG, 
+        "Submitted: " + result.text + 
+        " (final=" + to_string(result.is_final) + 
+        ", latency=" + to_string(result.latency_ms) + "ms)", 
+        "OnnxSTT");
+}
+
+void MY_OPERATOR::process(Punctuation const & punct, uint32_t port) {
+    if (punct == Punctuation::FinalMarker) {
+        // Reset the decoder on final punctuation
+        if (onnx_impl_) {
+            onnx_impl_->reset();
+            SPLAPPTRC(L_DEBUG, "Reset decoder on final punctuation", "OnnxSTT");
+        }
+    }
+    
+    // Forward punctuation
+    submit(punct, 0);
+}
+
+// End of implementation
+
+<%SPL::CodeGen::implementationEpilogue($model);%>

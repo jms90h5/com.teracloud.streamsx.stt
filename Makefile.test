@@ -1,0 +1,17 @@
+# Makefile for testing NVIDIA FastConformer
+CXX = g++
+CXXFLAGS = -std=c++14 -O2 -g -Wall
+INCLUDES = -I. -Ideps/onnxruntime/include -Iimpl/include
+LIBS = -Ldeps/onnxruntime/lib -Limpl/lib -lonnxruntime -ls2t_impl -pthread
+
+# Test targets
+test_nvidia: test_nvidia_fastconformer
+	./test_nvidia_fastconformer
+
+test_nvidia_fastconformer: test_nvidia_fastconformer.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $< -o $@ $(LIBS)
+
+clean:
+	rm -f test_nvidia_fastconformer
+
+.PHONY: test_nvidia clean

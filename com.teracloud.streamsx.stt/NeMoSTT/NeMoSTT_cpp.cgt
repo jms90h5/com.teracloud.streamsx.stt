@@ -1,0 +1,211 @@
+<%
+    # Get parameters
+    my $modelPath = $model->getParameterByName("modelPath");
+    my $tokensPath = $model->getParameterByName("tokensPath");
+    my $audioFormat = $model->getParameterByName("audioFormat");
+    my $chunkDurationMs = $model->getParameterByName("chunkDurationMs");
+    my $minSpeechDurationMs = $model->getParameterByName("minSpeechDurationMs");
+    
+    # Get input/output ports
+    my $inputPort = $model->getInputPortAt(0);
+    my $outputPort = $model->getOutputPortAt(0);
+%>
+
+/* Additional includes for NeMoSTT operator */
+#include <iostream>
+#include <cstring>
+#include <chrono>
+
+<%SPL::CodeGen::implementationPrologue($model);%>
+
+<%
+    my $modelPathValue = $modelPath->getValueAt(0)->getCppExpression();
+    my $tokensPathValue = $tokensPath->getValueAt(0)->getCppExpression();
+    my $audioFormatValue = $audioFormat ? 'MY_OPERATOR_SCOPE::' . $audioFormat->getValueAt(0)->getSPLExpression() : 'MY_OPERATOR_SCOPE::mono16k';
+    my $chunkDurationValue = $chunkDurationMs ? $chunkDurationMs->getValueAt(0)->getCppExpression() : "5000";
+    my $minSpeechDurationValue = $minSpeechDurationMs ? $minSpeechDurationMs->getValueAt(0)->getCppExpression() : "500";
+%>
+
+MY_OPERATOR::MY_OPERATOR()
+    : sampleRate_(16000),
+      channels_(1),
+      modelPath_(<%=$modelPathValue%>),
+      tokensPath_(<%=$tokensPathValue%>),
+      chunkDurationMs_(<%=$chunkDurationValue%>),
+      minSpeechDurationMs_(<%=$minSpeechDurationValue%>)
+{
+<%if ($audioFormat) {%>
+    // Parse audio format
+    MY_OPERATOR_SCOPE::AudioFormat format = <%=$audioFormatValue%>;
+    if (format == MY_OPERATOR_SCOPE::mono8k) {
+        sampleRate_ = 8000;
+    } else if (format == MY_OPERATOR_SCOPE::mono16k) {
+        sampleRate_ = 16000;
+    } else if (format == MY_OPERATOR_SCOPE::mono22k) {
+        sampleRate_ = 22050;
+    } else if (format == MY_OPERATOR_SCOPE::mono44k) {
+        sampleRate_ = 44100;
+    } else if (format == MY_OPERATOR_SCOPE::mono48k) {
+        sampleRate_ = 48000;
+    }
+<%}%>
+    
+    SPLAPPTRC(L_DEBUG, "NeMoSTT constructor: modelPath=" << modelPath_ 
+              << ", tokensPath=" << tokensPath_
+              << ", sampleRate=" << sampleRate_ 
+              << ", chunkDuration=" << chunkDurationMs_ << "ms"
+              << ", minSpeechDuration=" << minSpeechDurationMs_ << "ms", 
+              SPL_OPER_DBG);
+}
+
+MY_OPERATOR::~MY_OPERATOR() 
+{
+    SPLAPPTRC(L_DEBUG, "NeMoSTT destructor", SPL_OPER_DBG);
+}
+
+void MY_OPERATOR::allPortsReady() 
+{
+    SPLAPPTRC(L_DEBUG, "NeMoSTT allPortsReady", SPL_OPER_DBG);
+    
+    try {
+        // Initialize NeMo CTC implementation
+        nemoSTT_.reset(new NeMoCTCImpl());
+        if (!nemoSTT_->initialize(modelPath_, tokensPath_)) {
+            throw std::runtime_error("Failed to initialize NeMo CTC model");
+        }
+        
+        SPLAPPTRC(L_INFO, "NeMo CTC model and feature extractor initialized successfully", SPL_OPER_DBG);
+        
+    } catch (const std::exception& e) {
+        SPLAPPTRC(L_ERROR, "Failed to initialize NeMo STT: " << e.what(), SPL_OPER_DBG);
+        throw;
+    }
+}
+
+void MY_OPERATOR::prepareToShutdown() 
+{
+    SPLAPPTRC(L_DEBUG, "NeMoSTT prepareToShutdown", SPL_OPER_DBG);
+}
+
+void MY_OPERATOR::process(Tuple const & tuple, uint32_t port)
+{
+    SPLAPPTRC(L_TRACE, "NeMoSTT process tuple", SPL_OPER_DBG);
+    
+    const IPort0Type & ituple = static_cast<const IPort0Type &>(tuple);
+    
+    // Extract audio data from input tuple
+    // Assuming the tuple has a blob attribute containing audio data
+    // Extract audio data from input tuple (assumes first blob attribute is audio)
+    const SPL::blob& audioBlob = ituple.get_audioChunk();
+    const void* audioData = audioBlob.getData();
+    uint64_t audioSize = audioBlob.getSize();
+    
+    // Process audio data (assuming 16-bit samples)
+    processAudioData(audioData, audioSize, 16);
+    
+    // For streaming mode, could check if we have enough audio for transcription
+    // For now, accumulate audio and transcribe on punctuation
+}
+
+void MY_OPERATOR::process(Punctuation const & punct, uint32_t port)
+{
+    SPLAPPTRC(L_INFO, "NeMoSTT process punctuation: " << punct, SPL_OPER_DBG);
+    
+    // On window marker or final marker, flush any remaining audio and get final transcription
+    if (punct == Punctuation::WindowMarker || punct == Punctuation::FinalMarker) {
+        SPLAPPTRC(L_INFO, "Punctuation " << punct << " received. Audio buffer size: " << audioBuffer_.size() << " samples", SPL_OPER_DBG);
+        
+        // Process any accumulated audio
+        if (!audioBuffer_.empty()) {
+            SPLAPPTRC(L_INFO, "Transcribing " << audioBuffer_.size() << " samples ("
+                      << (audioBuffer_.size() * 1000.0f / sampleRate_) << " ms)", SPL_OPER_DBG);
+            
+            std::string transcription = transcribeAudio(audioBuffer_);
+            
+            SPLAPPTRC(L_INFO, "Transcription result: '" << transcription << "'", SPL_OPER_DBG);
+            
+            if (!transcription.empty()) {
+                outputTranscription(transcription);
+            } else {
+                SPLAPPTRC(L_INFO, "Empty transcription returned", SPL_OPER_DBG);
+            }
+            audioBuffer_.clear();
+        } else {
+            SPLAPPTRC(L_INFO, "Punctuation received but audio buffer is empty", SPL_OPER_DBG);
+        }
+    }
+    
+    // Forward punctuation
+    submit(punct, 0);
+}
+
+void MY_OPERATOR::processAudioData(const void* data, size_t bytes, int bitsPerSample)
+{
+    size_t samples = bytes / (bitsPerSample / 8);
+    
+    // Convert to float samples and accumulate
+    if (bitsPerSample == 16) {
+        const int16_t* samples16 = static_cast<const int16_t*>(data);
+        for (size_t i = 0; i < samples; i++) {
+            audioBuffer_.push_back(samples16[i] / 32768.0f);
+        }
+    } else if (bitsPerSample == 8) {
+        const uint8_t* samples8 = static_cast<const uint8_t*>(data);
+        for (size_t i = 0; i < samples; i++) {
+            audioBuffer_.push_back((samples8[i] - 128) / 128.0f);
+        }
+    }
+    
+    SPLAPPTRC(L_INFO, "Accumulated " << samples << " samples, total buffer: " << audioBuffer_.size() 
+              << " samples (" << (audioBuffer_.size() * 1000.0f / sampleRate_) << " ms)", SPL_OPER_DBG);
+}
+
+void MY_OPERATOR::processAudioChunk(const std::vector<float>& audioData)
+{
+    // For real-time streaming, this would process chunks as they arrive
+    // For now, we accumulate in audioBuffer_ and process on window markers
+    audioBuffer_.insert(audioBuffer_.end(), audioData.begin(), audioData.end());
+}
+
+std::string MY_OPERATOR::transcribeAudio(const std::vector<float>& audioData)
+{
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        // Run inference with NeMo CTC model (handles feature extraction internally)
+        std::string transcription = nemoSTT_->transcribe(audioData);
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        
+        float audio_duration_ms = audioData.size() * 1000.0f / sampleRate_;
+        float speedup = (duration.count() > 0) ? audio_duration_ms / duration.count() : 0.0f;
+        
+        SPLAPPTRC(L_INFO, "Transcribed " << audio_duration_ms << "ms audio in " 
+                  << duration.count() << "ms (" << speedup << "x real-time)", SPL_OPER_DBG);
+        
+        return transcription;
+        
+    } catch (const std::exception& e) {
+        SPLAPPTRC(L_ERROR, "Transcription failed: " << e.what(), SPL_OPER_DBG);
+        return "";
+    }
+}
+
+void MY_OPERATOR::outputTranscription(const std::string& text)
+{
+    if (text.empty()) return;
+    
+    SPLAPPTRC(L_INFO, "Transcription: " << text, SPL_OPER_DBG);
+    
+    // Create output tuple
+    OPort0Type otuple;
+    
+    // Set transcription text (assumes output has 'transcription' attribute)
+    otuple.set_transcription(text);
+    
+    // Submit output tuple
+    submit(otuple, 0);
+}
+
+<%SPL::CodeGen::implementationEpilogue($model);%>

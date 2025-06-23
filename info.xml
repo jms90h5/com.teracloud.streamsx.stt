@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<info:toolkitInfoModel xmlns:common="http://www.ibm.com/xmlns/prod/streams/spl/common" 
+                       xmlns:info="http://www.ibm.com/xmlns/prod/streams/spl/toolkitInfo">
+  <info:identity>
+    <info:name>com.teracloud.streamsx.stt</info:name>
+    <info:description>
+This toolkit provides integration with multiple speech recognition frameworks including:
+- NVIDIA NeMo cache-aware streaming models
+- ONNX-based models (Whisper, Zipformer, etc.)
+- WeNet speech recognition framework
+
+It enables real-time streaming speech-to-text capabilities for TeraCloud Streams applications
+with support for multiple model types and configurations.
+    </info:description>
+    <info:version>1.0.0</info:version>
+    <info:requiredProductVersion>7.2.0</info:requiredProductVersion>
+  </info:identity>
+  <info:dependencies/>
+</info:toolkitInfoModel>

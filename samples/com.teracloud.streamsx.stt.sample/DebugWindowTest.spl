@@ -1,0 +1,89 @@
+namespace com.teracloud.streamsx.stt.sample;
+
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * Debug Window Test - Verify window punctuation is working
+ */
+composite DebugWindowTest {
+    graph
+        // Audio source - reads from test file
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/test_data/audio/librispeech-1995-1837-0001.wav";
+                blockSize: 16384u;  // 1 second chunks
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // Debug: Show audio chunks and punctuation
+        () as AudioDebug = Custom(AudioStream) {
+            logic
+                state: {
+                    mutable int32 chunkCount = 0;
+                }
+                onTuple AudioStream: {
+                    chunkCount++;
+                    printStringLn("[AudioStream] Chunk " + (rstring)chunkCount + ": " + 
+                                 (rstring)size(audioChunk) + " bytes");
+                }
+                onPunct AudioStream: {
+                    printStringLn("[AudioStream] Punctuation: " + (rstring)currentPunct());
+                }
+        }
+        
+        // Add count-based window - every 5 chunks
+        stream<blob audioChunk, uint64 audioTimestamp> WindowedAudio = 
+            Aggregate(AudioStream) {
+                window
+                    AudioStream: tumbling, count(5);  // Window every 5 chunks
+                output
+                    WindowedAudio: 
+                        audioChunk = Last(audioChunk),
+                        audioTimestamp = Last(audioTimestamp);
+            }
+        
+        // Debug windowed stream
+        () as WindowDebug = Custom(WindowedAudio) {
+            logic
+                state: {
+                    mutable int32 windowCount = 0;
+                }
+                onTuple WindowedAudio: {
+                    windowCount++;
+                    printStringLn("[WindowedAudio] Window #" + (rstring)windowCount + 
+                                 " closed! Chunk size: " + (rstring)size(audioChunk));
+                }
+                onPunct WindowedAudio: {
+                    printStringLn("[WindowedAudio] Punctuation: " + (rstring)currentPunct());
+                }
+        }
+        
+        // Simple pass-through to test punctuation flow
+        stream<rstring message> TestOutput = Custom(WindowedAudio) {
+            logic
+                state: {
+                    mutable int32 processCount = 0;
+                }
+                onTuple WindowedAudio: {
+                    processCount++;
+                    submit({message = "Processed window " + (rstring)processCount}, TestOutput);
+                }
+                onPunct WindowedAudio: {
+                    printStringLn("[TestOutput] Forwarding punctuation: " + (rstring)currentPunct());
+                    submit(currentPunct(), TestOutput);
+                }
+        }
+        
+        // Final debug
+        () as FinalDebug = Custom(TestOutput) {
+            logic
+                onTuple TestOutput: {
+                    printStringLn("[FinalDebug] " + message);
+                }
+                onPunct TestOutput: {
+                    printStringLn("[FinalDebug] Punctuation: " + (rstring)currentPunct());
+                }
+        }
+}

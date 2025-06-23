@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<toolkitModel xmlns="http://www.ibm.com/xmlns/prod/streams/spl/toolkit" productVersion="7.2.0.1" xmlns:common="http://www.ibm.com/xmlns/prod/streams/spl/common" xmlns:ti="http://www.ibm.com/xmlns/prod/streams/spl/toolkitInfo" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <toolkit name="com.teracloud.streamsx.stt" requiredProductVersion="7.2.0" version="1.0.0">
+    <description>
+This toolkit provides integration with multiple speech recognition frameworks including:
+- NVIDIA NeMo cache-aware streaming models
+- ONNX-based models (Whisper, Zipformer, etc.)
+- WeNet speech recognition framework
+
+It enables real-time streaming speech-to-text capabilities for TeraCloud Streams applications
+with support for multiple model types and configurations.
+    </description>
+    <uriTable>
+      <uri index="4" value="com.teracloud.streamsx.stt/OnnxSTT"/>
+      <uri index="3" value="com.teracloud.streamsx.stt/NeMoSTT"/>
+      <uri index="2" value="com.teracloud.streamsx.stt/FileAudioSource.spl"/>
+      <uri index="1" value="OnnxSTT_Demo.spl"/>
+    </uriTable>
+    <namespace name="">
+      <compositeOp column="11" line="12" name="NeMoRealtime" potentialMain="true" uriIndex="1">
+        <parameter defaultValue="&quot;../../models/nemo_fastconformer_streaming/fastconformer_streaming.onnx&quot;" metaType="Expression" name="nemoModel" optional="true" type="&lt;rstring>"/>
+        <parameter defaultValue="true" metaType="Expression" name="enableVAD" optional="true" type="&lt;boolean>"/>
+      </compositeOp>
+    </namespace>
+    <namespace name="com.teracloud.streamsx.stt">
+      <primitiveOp language="Cpp" modelUriIndex="3" name="NeMoSTT" public="true">
+        <description>
+The NeMoSTT operator performs speech-to-text conversion using NVIDIA NeMo's 
+cache-aware streaming FastConformer model exported in CTC mode. This model is 
+trained on over 10,000 hours of speech data and provides excellent accuracy 
+for real-time streaming speech recognition.
+
+The operator uses the working Kaldi-native-fbank feature extraction with the
+nvidia/stt_en_fastconformer_hybrid_large_streaming_multi model in CTC mode,
+achieving 30x real-time performance with perfect transcription quality.
+      </description>
+        <customLiterals name="AudioFormat">
+          <value name="mono8k"/>
+          <value name="mono16k"/>
+          <value name="mono22k"/>
+          <value name="mono44k"/>
+          <value name="mono48k"/>
+        </customLiterals>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="modelPath" optional="false" type="rstring">
+          <description>Path to the CTC ONNX model file (models/fastconformer_ctc_export/model.onnx)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="tokensPath" optional="false" type="rstring">
+          <description>Path to the vocabulary tokens file (models/fastconformer_ctc_export/tokens.txt)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="modelType" optional="true" type="rstring">
+          <description>Type of STT model (FastConformerHybrid, NeMoCacheAwareConformer)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="enableCaching" optional="true" type="boolean">
+          <description>Enable cache-aware streaming for better latency</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="cacheSize" optional="true" type="int32">
+          <description>Size of the cache for streaming (default: 64)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="attContextLeft" optional="true" type="int32">
+          <description>Left attention context for latency control (default: 70)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="attContextRight" optional="true" type="int32">
+          <description>Right attention context for latency control (0=0ms, 4=80ms, 24=480ms, 52=1040ms)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="sampleRate" optional="true" type="int32">
+          <description>Audio sample rate in Hz (default: 16000)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="provider" optional="true" type="rstring">
+          <description>ONNX execution provider (CPU, CUDA, etc)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="numThreads" optional="true" type="int32">
+          <description>Number of threads for ONNX Runtime (default: 4)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="CustomLiteral" name="audioFormat" optional="true" type="AudioFormat">
+          <description>Audio format of the input stream</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="chunkDurationMs" optional="true" type="int32">
+          <description>Duration of audio chunks to process in milliseconds</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="minSpeechDurationMs" optional="true" type="int32">
+          <description>Minimum speech duration to trigger transcription in milliseconds</description>
+        </parameter>
+        <inputPort maxNumPorts="1" minNumPorts="1" optional="false" windowPunctInputMode="Oblivious">
+          <description>Audio input port</description>
+          <windowPolicy>NonWindowed</windowPolicy>
+        </inputPort>
+        <outputPort expressionMode="Expression" maxNumPorts="1" minNumPorts="1" optional="false" windowPunctOutputMode="Preserving">
+          <description>Transcription output port</description>
+        </outputPort>
+      </primitiveOp>
+      <primitiveOp language="Cpp" modelUriIndex="4" name="OnnxSTT" public="true">
+        <description>
+        ONNX-based Speech-to-Text operator using ONNX Runtime.
+        This operator provides real-time speech recognition using speech models
+        in ONNX format, with no dependency on WeNet C++ API.
+      </description>
+        <customLiterals name="Provider">
+          <value name="CPU"/>
+          <value name="CUDA"/>
+          <value name="TensorRT"/>
+        </customLiterals>
+        <parameter expressionMode="AttributeFree" name="encoderModel" optional="false" type="rstring">
+          <description>Path to the encoder ONNX model file</description>
+        </parameter>
+        <parameter expressionMode="AttributeFree" name="vocabFile" optional="false" type="rstring">
+          <description>Path to the vocabulary file</description>
+        </parameter>
+        <parameter expressionMode="AttributeFree" name="cmvnFile" optional="false" type="rstring">
+          <description>Path to the CMVN statistics file</description>
+        </parameter>
+        <parameter expressionMode="AttributeFree" name="sampleRate" optional="true" type="int32">
+          <description>Audio sample rate (default 16000)</description>
+        </parameter>
+        <parameter expressionMode="AttributeFree" name="chunkSizeMs" optional="true" type="int32">
+          <description>Chunk size in milliseconds (default 100)</description>
+        </parameter>
+        <parameter expressionMode="AttributeFree" name="provider" optional="true" type="rstring">
+          <description>ONNX execution provider (CPU, CUDA, TensorRT)</description>
+        </parameter>
+        <parameter expressionMode="AttributeFree" name="numThreads" optional="true" type="int32">
+          <description>Number of threads for CPU inference (default 4)</description>
+        </parameter>
+        <parameter expressionMode="AttributeFree" name="modelType" optional="true" type="rstring">
+          <description>Model type: CACHE_AWARE_CONFORMER or NEMO_CTC (default CACHE_AWARE_CONFORMER)</description>
+        </parameter>
+        <parameter expressionMode="AttributeFree" name="blankId" optional="true" type="int32">
+          <description>Blank token ID for CTC decoding (default 0, NeMo uses 1024)</description>
+        </parameter>
+        <parameter expressionMode="AttributeFree" name="streamingMode" optional="true" type="boolean">
+          <description>Enable streaming mode for real-time processing (default false)</description>
+        </parameter>
+        <parameter expressionMode="AttributeFree" name="chunkOverlapMs" optional="true" type="int32">
+          <description>Overlap between chunks in streaming mode (default 50ms)</description>
+        </parameter>
+        <inputPort maxNumPorts="1" minNumPorts="1" optional="false" windowPunctInputMode="Oblivious">
+          <description>Audio input stream</description>
+          <windowPolicy>NonWindowed</windowPolicy>
+        </inputPort>
+        <outputPort expressionMode="Nonexistent" maxNumPorts="1" minNumPorts="1" optional="false" windowPunctOutputMode="Preserving">
+          <description>Transcription output stream</description>
+        </outputPort>
+      </primitiveOp>
+      <compositeOp column="18" line="27" name="FileAudioSource" potentialMain="false" public="true" uriIndex="2">
+        <parameter metaType="Expression" name="filename" optional="false" type="&lt;rstring>"/>
+        <parameter defaultValue="3200u" metaType="Expression" name="blockSize" optional="true" type="&lt;uint32>"/>
+        <parameter defaultValue="16000" metaType="Expression" name="sampleRate" optional="true" type="&lt;int32>"/>
+        <parameter defaultValue="16" metaType="Expression" name="bitsPerSample" optional="true" type="&lt;int32>"/>
+        <parameter defaultValue="1" metaType="Expression" name="channelCount" optional="true" type="&lt;int32>"/>
+        <outputPort name="AudioStream" portIndex="0"/>
+        <type column="9" line="36" name="AudioChunkType" type="tuple&lt;blob audioChunk, uint64 audioTimestamp>" uriIndex="2"/>
+      </compositeOp>
+    </namespace>
+    <sabFiles>
+      <ti:include path="toolkit.xml" root="toolkitDir"/>
+      <ti:include path="impl/java/lib/**" root="toolkitDir"/>
+      <ti:include path="impl/java/bin/**" root="toolkitDir"/>
+      <ti:include path="impl/bin/**" root="toolkitDir"/>
+      <ti:include path="impl/lib/**" root="toolkitDir"/>
+      <ti:include path="impl/nl/*.dat" root="toolkitDir"/>
+      <ti:include path="etc/**" root="toolkitDir"/>
+      <ti:include path="lib/**" root="toolkitDir"/>
+      <ti:include path="nl/**" root="toolkitDir"/>
+      <ti:include path="opt/**" root="toolkitDir"/>
+    </sabFiles>
+  </toolkit>
+</toolkitModel>

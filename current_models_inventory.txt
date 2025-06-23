@@ -1,0 +1,15 @@
+-rw-r--r-- 1 jsharpe developers 330083505 May 27  2024 models/sherpa_onnx_paraformer/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/encoder-epoch-99-avg-1.onnx
+-rw-r--r-- 1 jsharpe developers 13876452 May 27  2024 models/sherpa_onnx_paraformer/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/decoder-epoch-99-avg-1.onnx
+-rw-r--r-- 1 jsharpe developers 12833618 May 27  2024 models/sherpa_onnx_paraformer/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/joiner-epoch-99-avg-1.onnx
+-rw-r--r-- 1 jsharpe developers 3228404 May 27  2024 models/sherpa_onnx_paraformer/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/joiner-epoch-99-avg-1.int8.onnx
+-rw-r--r-- 1 jsharpe developers 13091040 May 27  2024 models/sherpa_onnx_paraformer/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/decoder-epoch-99-avg-1.int8.onnx
+-rw-r--r-- 1 jsharpe developers 181895032 May 27  2024 models/sherpa_onnx_paraformer/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/encoder-epoch-99-avg-1.int8.onnx
+-rw-r--r-- 1 jsharpe developers 0 May 28 13:04 models/nemo_fastconformer_streaming/stt_en_conformer_ctc_small.onnx
+-rw-r--r-- 1 jsharpe developers 5746225 May 28 13:35 models/nemo_fastconformer_streaming/conformer_ctc.onnx
+-rw-r--r-- 1 jsharpe developers 2628749 May 28 14:28 models/nemo_fastconformer_streaming/conformer_ctc_dynamic.onnx
+-rw-r--r-- 1 jsharpe developers 0 May 29 08:49 models/real_nemo_download/conformer_ctc.onnx
+-rw-r--r-- 1 jsharpe developers 190297 May 29 08:45 models/test_asr_model.onnx
+-rw-r--r-- 1 jsharpe developers 377884988 May 29 08:59 models/wav2vec2_base.onnx
+-rw-r--r-- 1 jsharpe developers 48327344 Feb 28 20:55 models/nemo_real/stt_en_conformer_ctc_small.nemo
+lrwxrwxrwx 1 jsharpe developers 76 May 30 08:43 models/nemo_cache_aware_conformer/models--nvidia--stt_en_fastconformer_hybrid_large_streaming_multi/snapshots/ae98143333690bd7ced4bc8ec16769bcb8918374/stt_en_fastconformer_hybrid_large_streaming_multi.nemo -> ../../blobs/8db5289d5238aca839b84f5afdd66eb1aa64413feb9c2a915940b291012aff8b
+-rw-r--r-- 1 jsharpe developers 126386176 May 30 08:43 models/nemo_fastconformer_direct/stt_en_fastconformer_hybrid_large_streaming_multi.nemo
