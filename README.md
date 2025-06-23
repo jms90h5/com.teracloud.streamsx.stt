@@ -153,6 +153,8 @@ Benchmarked on Intel Xeon CPU with 4 threads:
 - [Operator Guide](OPERATOR_GUIDE.md) - Detailed operator documentation
 - [Implementation Details](IMPLEMENTATION_COMPLETE.md) - Technical implementation notes
 - [Update Plan](docs/STREAMS_OPERATOR_UPDATE_PLAN.md) - Roadmap for streaming support
+- [Scripts Overview](docs/SCRIPTS_OVERVIEW.md) - Guide to the setup, export, download, and test scripts for this toolkit.
+- Archived Developer Tools (archive/dev/) - Legacy debug, analysis, and ad‑hoc test scripts have been moved to this folder and are no longer part of the main workflow.
 
 ## Known Limitations
 
