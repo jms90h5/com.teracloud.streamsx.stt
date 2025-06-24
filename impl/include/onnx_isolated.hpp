@@ -3,10 +3,18 @@
 // Isolated ONNX Runtime includes to prevent macro conflicts with SPL/Streams
 // This prevents NO_EXCEPTION macro from conflicting with SPL-generated code
 
-// Include ONNX headers with macro renamed to avoid conflicts
-#define NO_EXCEPTION ONNX_NO_EXCEPTION
-#include <onnxruntime_cxx_api.h>
+// Include ONNX headers with macro isolation to prevent conflicts
+#ifdef NO_EXCEPTION
+#define SAVE_NO_EXCEPTION NO_EXCEPTION
 #undef NO_EXCEPTION
+#endif
+
+#include <onnxruntime_cxx_api.h>
+
+#ifdef SAVE_NO_EXCEPTION
+#define NO_EXCEPTION SAVE_NO_EXCEPTION
+#undef SAVE_NO_EXCEPTION
+#endif
 
 // Create type aliases to use ONNX types without namespace pollution
 namespace OnnxIsolated {
