@@ -26,30 +26,16 @@ pip install nemo-asr onnxruntime librosa numpy
 > **Memory-Heavy:** Exporting the full NeMo streaming hybrid model can consume multiple GBs of RAM.
 > **Tip:** Run the export steps manually in a separate shell if your agent may be interrupted.
 
-```bash
+#```bash
 # 1.1 Activate NeMo environment
 source venv_nemo/bin/activate
 
-# 1.2 Export the hybrid streaming ONNX model
-python << 'PY'
-import nemo.collections.asr as nemo_asr
+# 1.2 Run the export helper script (avoids interactive here-doc)
+./export_hybrid_model.py
 
-# Load pretrained hybrid model
-model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.from_pretrained(
-    "nvidia/stt_en_fastconformer_hybrid_large_streaming_multi"
-)
-
-# Export with cache tensors for streaming
-model.export(
-    "models/hybrid_streaming/fastconformer_hybrid_streaming.onnx",
-    export_as_rnnt=True,
-    cache_all_outputs=True
-)
-PY
-
-# 1.3 Confirm the file
+# 1.3 Confirm the ONNX file exists
 ls -lh models/hybrid_streaming/fastconformer_hybrid_streaming.onnx
-```
+```bash
 
 **Checkpoint 1:** ONNX model file exists and has non-zero size.
 
