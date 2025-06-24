@@ -16,9 +16,9 @@ Use this plan to systematically validate the toolkit and to resume where you lef
 python3 -m venv venv_nemo
 source venv_nemo/bin/activate
 
-# Upgrade build tools and install minimal packages
+# Upgrade build tools and install minimal packages (include hydra-core for Nemo)
 pip install --upgrade pip setuptools wheel cython
-pip install nemo-asr onnxruntime librosa numpy
+pip install nemo-asr onnxruntime librosa numpy hydra-core
 ```
 
 ## 1. Acquire & Verify Hybrid Model
@@ -30,7 +30,8 @@ pip install nemo-asr onnxruntime librosa numpy
 # 1.1 Activate NeMo environment
 source venv_nemo/bin/activate
 
-# 1.2 Run the export helper script (avoids interactive here-doc)
+# 1.2 Ensure export script is executable and run it
+chmod +x export_hybrid_model.py
 ./export_hybrid_model.py
 
 # 1.3 Confirm the ONNX file exists
