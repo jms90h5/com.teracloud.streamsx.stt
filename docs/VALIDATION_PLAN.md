@@ -16,9 +16,9 @@ Use this plan to systematically validate the toolkit and to resume where you lef
 python3 -m venv venv_nemo
 source venv_nemo/bin/activate
 
-# Upgrade build tools and install minimal packages (include hydra-core for Nemo)
+# Upgrade build tools and install minimal packages (include hydra-core & PyTorch Lightning)
 pip install --upgrade pip setuptools wheel cython
-pip install nemo-asr onnxruntime librosa numpy hydra-core
+pip install nemo-asr onnxruntime librosa numpy hydra-core pytorch-lightning
 ```
 
 ## 1. Acquire & Verify Hybrid Model
