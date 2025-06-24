@@ -7,6 +7,20 @@
 
 Use this plan to systematically validate the toolkit and to resume where you left off.
 
+## 0. Set up Python environment
+
+> **Install only the ASR subset** to avoid megatron-core build failures.
+
+```bash
+# Create and activate a virtualenv
+python3 -m venv venv_nemo
+source venv_nemo/bin/activate
+
+# Upgrade build tools and install minimal packages
+pip install --upgrade pip setuptools wheel cython
+pip install nemo-asr onnxruntime librosa numpy
+```
+
 ## 1. Acquire & Verify Hybrid Model
 
 > **Memory-Heavy:** Exporting the full NeMo streaming hybrid model can consume multiple GBs of RAM.
