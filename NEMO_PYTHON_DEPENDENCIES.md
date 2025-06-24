@@ -160,9 +160,9 @@ pip3 uninstall -y $(pip3 list | grep -E "(nemo|torch|transformers|huggingface)" 
 
 # Install in very specific order with exact versions
 pip3 install --user torch==1.13.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
-pip3 install --user "transformers==4.21.0" 
-pip3 install --user "huggingface_hub==0.10.0"
-pip3 install --user "pytorch-lightning==1.8.0"
+pip3 install --user "transformers==4.21.0"
+pip3 install --user huggingface_hub==0.19.4  # pin to last version with ModelFilter
+pip3 install --user "pytorch-lightning==1.8.0"  # compatible with NeMo toolkit
 pip3 install --user "nemo_toolkit==1.18.0"
 ```
 
@@ -179,6 +179,14 @@ Create reproducible scripts and validate the exported model works with our C++ i
 3. **Dependencies Documentation**: This file + requirements.txt 
 4. **Validation Script**: Test the exported model with real audio
 5. **Model Sharing**: Either include ONNX model in repo or provide separate download
+
+## Update June 24, 2025
+
+See `PYTHON_UPGRADE_2025_06_24.md` for documentation of:
+- Python 3.11 upgrade process on Rocky Linux 9.6
+- Virtual environment setup with venv_nemo_py311
+- Confirmation that the dependency conflict persists even with Python 3.11
+- Backup of existing models to models/backup_2025_06_24/
 
 ## Why This Documentation Matters
 
