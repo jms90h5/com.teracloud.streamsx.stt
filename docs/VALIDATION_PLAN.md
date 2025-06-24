@@ -30,6 +30,9 @@ pip install nemo-asr onnxruntime librosa numpy hydra-core
 # 1.1 Activate NeMo environment
 source venv_nemo/bin/activate
 
+# If you see a missing Hydra error, install Hydra manually (pip install hydra-core)
+pip install hydra-core
+
 # 1.2 Ensure export script is executable and run it
 chmod +x export_hybrid_model.py
 ./export_hybrid_model.py
