@@ -33,11 +33,15 @@ source venv_nemo/bin/activate
 # If you see a missing Hydra error, install Hydra manually (pip install hydra-core)
 pip install hydra-core
 
-# 1.2 Ensure export script is executable and run it
+# 1.2 Download the NeMo checkpoint if needed (this may be slow)
+chmod +x download_nemo_simple.py
+python download_nemo_simple.py
+
+# 1.3 Ensure export script is executable and run it
 chmod +x export_hybrid_model.py
 ./export_hybrid_model.py
 
-# 1.3 Confirm the ONNX file exists
+# 1.4 Confirm the ONNX file exists
 ls -lh models/hybrid_streaming/fastconformer_hybrid_streaming.onnx
 ```bash
 
