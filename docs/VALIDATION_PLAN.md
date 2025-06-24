@@ -7,7 +7,11 @@
 
 Use this plan to systematically validate the toolkit and to resume where you left off.
 
-## 0. Set up Python environment
+## 0. Prerequisites
+
+- **OS build tools**: install Python headers & compilers (e.g. `sudo dnf install python3-devel gcc` or `sudo apt install python3-dev build-essential`).
+
+## 1. Set up Python environment
 
 > **Install only the ASR subset** to avoid megatron-core build failures.
 
@@ -55,16 +59,39 @@ pip install hydra-core
 # If you see a missing transformers error, install transformers manually:
 pip install transformers
 
-# 1.2 Download the NeMo checkpoint if needed (this may be slow)
+### 1.2 Download the NeMo .nemo checkpoint (if not already present)
 chmod +x download_nemo_simple.py
 python download_nemo_simple.py
 
-# 1.3 Ensure export script is executable and run it
-chmod +x export_hybrid_model.py
-./export_hybrid_model.py
+### 1.3 Obtain or Export the ONNX model (manual step)
 
-# 1.4 Confirm the ONNX file exists
+The CTC+RNNT export process pulls in many deep Nemo dependencies and
+often fails in this environment. Please **export the ONNX model offline**
+or retrieve a pre-exported ONNX file and place it at:
+
+```
+models/hybrid_streaming/fastconformer_hybrid_streaming.onnx
+```
+
+If you have the Hugging Face Hub CLI configured and the ONNX is hosted,
+you can also download directly:
+
+```bash
+pip install huggingface-hub
+python - << 'PY'
+from huggingface_hub import hf_hub_download
+hf_hub_download(
+    repo_id='jms90h5/com.teracloud.streamsx.stt',
+    filename='models/hybrid_streaming/fastconformer_hybrid_streaming.onnx',
+    cache_dir='.'
+)
+PY
+```
+
+### 1.4 Confirm the ONNX file exists
+```bash
 ls -lh models/hybrid_streaming/fastconformer_hybrid_streaming.onnx
+```
 ```bash
 
 **Checkpoint 1:** ONNX model file exists and has non-zero size.
