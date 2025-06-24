@@ -21,7 +21,7 @@ Build and run the Streams applications to prove they work correctly.
 1. **Build the toolkit using Streams compiler**
    ```bash
    cd toolkits/com.teracloud.streamsx.stt
-   make toolkit
+   make
    ```
    - This will compile all operators and create the toolkit index
 
