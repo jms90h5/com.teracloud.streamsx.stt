@@ -18,7 +18,7 @@ source venv_nemo/bin/activate
 
 # Upgrade build tools and install minimal packages (include hydra-core & PyTorch Lightning)
 pip install --upgrade pip setuptools wheel cython
-pip install nemo-asr onnxruntime librosa numpy hydra-core pytorch-lightning
+pip install nemo-asr onnxruntime librosa numpy hydra-core pytorch-lightning huggingface-hub
 ```
 
 ## 1. Acquire & Verify Hybrid Model
