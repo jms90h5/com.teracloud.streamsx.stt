@@ -18,8 +18,17 @@ The standalone test program (`test_onnx_stt_operator.cpp`) successfully produces
 
 3. **Feature extraction chain**
    - OnnxSTTImpl → NeMoCTCModel → ImprovedFbank
-   - Correct mel-spectrogram parameters
+   - Correct mel‑spectrogram parameters (FFT size: 512, hop: 160)
    - No normalization (critical!)
+
+4. **Empty‑features bug fixed**
+   - Integrated ImprovedFbank in OnnxSTTImpl to generate real mel features
+   - Features now in correct log‑mel range: min≈ −23 dB to max≈ +6 dB
+
+5. **Working model & input validation**
+   - Model: `models/fastconformer_nemo_export/ctc_model.onnx`
+   - Vocabulary tokens: 1025 (including blank)
+   - Verified features from `working_input.bin`: min≈ −10.73, max≈ +6.68, mean≈ −3.91
 
 ## Current Streams Operator Status
 
