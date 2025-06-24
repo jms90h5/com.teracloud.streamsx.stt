@@ -13,7 +13,7 @@ soundfile>=0.10.0
 
 # Optional but recommended
 numba>=0.54.0  # Speeds up feature extraction
-rapidjson>=1.1.0  # Fast JSON parsing
+python-rapidjson>=1.1.0  # Fast JSON parsing (package name on PyPI)
 
 # For model export (development only)
 onnx>=1.12.0

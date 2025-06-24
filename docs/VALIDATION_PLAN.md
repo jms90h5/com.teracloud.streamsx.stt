@@ -13,10 +13,19 @@ Use this plan to systematically validate the toolkit and to resume where you lef
 
 ```bash
 
-# Ensure system C libraries & headers are installed (bz2, curses, cffi, sqlite3, readline)
+# Ensure system C libraries & headers are installed (bz2, curses, cffi, sqlite3, readline) and FFmpeg CLI for audio I/O
+# On Rocky Linux 9, enable EPEL, CRB, and RPM Fusion to install ffmpeg:
+#```bash
+#sudo dnf install -y epel-release
+#sudo dnf config-manager --set-enabled crb
+#sudo dnf install -y dnf-plugins-core
+#sudo rpm -Uvh https://download1.rpmfusion.org/free/el/rpmfusion-free-release-9.noarch.rpm
+#sudo rpm -Uvh https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-9.noarch.rpm
+#sudo dnf install -y ffmpeg
+#```
 # e.g. `sudo dnf install python3-devel gcc make swig bzip2-devel ncurses-devel libffi-devel sqlite-devel readline-devel`
 
-# Create and activate a Python 3.10+ virtualenv
+# Create and activate a Python 3.10+ virtualenv (must use python3.10+)
 python3.10 -m venv venv_nemo
 source venv_nemo/bin/activate
 
@@ -36,8 +45,10 @@ pip install "huggingface-hub==0.12.1"
 # 1.1 Activate NeMo environment
 source venv_nemo/bin/activate
 
-# If you encounter "ModelFilter" import errors, downgrade HuggingFace Hub:
-pip install "huggingface-hub==0.12.1"
+# If you encounter "ModelFilter" or related import errors (list_repo_tree), pin HuggingFace Hub:
+# Pin HuggingFace Hub and PyTorch Lightning versions for NeMo compatibility:
+pip install huggingface_hub==0.19.4  # last release with ModelFilter
+pip install pytorch-lightning==1.8.0  # compatible with NeMo toolkit
 
 # If you see a missing Hydra error, install Hydra manually:
 pip install hydra-core

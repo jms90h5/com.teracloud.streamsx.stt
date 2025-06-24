@@ -31,6 +31,20 @@ A production-ready speech-to-text toolkit for Teracloud Streams that provides re
 - Teracloud Streams 7.2.0.1+
 - C++14 compatible compiler
 - ONNX Runtime 1.16.3 (included)
+- Python 3.10+ (required for NeMo export scripts)
+- FFmpeg CLI (for audio I/O via pydub/ffmpeg backend)
+- FFmpeg CLI (for audio I/O via pydub/ffmpeg backend)
+  ```bash
+  # On Rocky Linux 9, enable EPEL and RPM Fusion to get ffmpeg:
+  sudo dnf install -y epel-release
+  # Some EPEL packages require CodeReady Builder (CRB)
+  sudo dnf config-manager --set-enabled crb
+  sudo dnf install -y dnf-plugins-core
+  # Enable RPM Fusion (free & nonfree) for EL9
+  sudo rpm -Uvh https://download1.rpmfusion.org/free/el/rpmfusion-free-release-9.noarch.rpm
+  sudo rpm -Uvh https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-9.noarch.rpm
+  sudo dnf install -y ffmpeg
+  ```
 
 ### Build and Test
 
