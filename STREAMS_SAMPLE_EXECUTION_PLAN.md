@@ -20,7 +20,7 @@ Build and run the Streams applications to prove they work correctly.
 ### Phase 1: Build the SPL Toolkit
 1. **Build the toolkit using Streams compiler**
    ```bash
-   cd /homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt
+   cd toolkits/com.teracloud.streamsx.stt
    make toolkit
    ```
    - This will compile all operators and create the toolkit index
@@ -34,8 +34,8 @@ Build and run the Streams applications to prove they work correctly.
 
 1. **Compile NeMoCTCSample.spl**
    ```bash
-   cd /homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/samples
-   sc -M NeMoCTCSample -t ../
+   cd toolkits/com.teracloud.streamsx.stt/samples/com.teracloud.streamsx.stt.sample
+   sc -M NeMoCTCSample -t ../../
    ```
    - This compiles the SPL application
    - `-M` specifies the main composite
@@ -43,7 +43,7 @@ Build and run the Streams applications to prove they work correctly.
 
 2. **Compile BasicNeMoTest.spl**
    ```bash
-   cd /homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/samples/com.teracloud.streamsx.stt.sample
+   cd toolkits/com.teracloud.streamsx.stt/samples/com.teracloud.streamsx.stt.sample
    sc -M BasicNeMoTest -t ../../
    ```
 
