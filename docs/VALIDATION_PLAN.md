@@ -12,11 +12,13 @@ Use this plan to systematically validate the toolkit and to resume where you lef
 > **Install only the ASR subset** to avoid megatron-core build failures.
 
 ```bash
+
+# Ensure system C libraries & headers are installed (bz2, curses, cffi, sqlite3, readline)
+# e.g. `sudo dnf install python3-devel gcc make swig bzip2-devel ncurses-devel libffi-devel sqlite-devel readline-devel`
+
 # Create and activate a Python 3.10+ virtualenv
 python3.10 -m venv venv_nemo
 source venv_nemo/bin/activate
-
-# Note: Python 3.9 will fail due to union type annotations in Nemo requiring PEP 604 (str|Path).
 
 # Upgrade build tools and install minimal packages (include hydra-core & PyTorch Lightning)
 pip install --upgrade pip setuptools wheel cython
