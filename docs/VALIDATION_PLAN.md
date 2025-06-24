@@ -18,7 +18,7 @@ source venv_nemo/bin/activate
 
 # Upgrade build tools and install minimal packages (include hydra-core & PyTorch Lightning)
 pip install --upgrade pip setuptools wheel cython
-pip install nemo-asr onnxruntime librosa numpy hydra-core pytorch-lightning
+pip install nemo-asr onnxruntime librosa numpy hydra-core pytorch-lightning transformers
 # Use a compatible Hugging Face Hub version for Nemo core (provides ModelFilter)
 pip install "huggingface-hub==0.12.1"
 ```
@@ -35,8 +35,10 @@ source venv_nemo/bin/activate
 # If you encounter "ModelFilter" import errors, downgrade HuggingFace Hub:
 pip install "huggingface-hub==0.12.1"
 
-# If you see a missing Hydra error, install Hydra manually (pip install hydra-core)
+# If you see a missing Hydra error, install Hydra manually:
 pip install hydra-core
+# If you see a missing transformers error, install transformers manually:
+pip install transformers
 
 # 1.2 Download the NeMo checkpoint if needed (this may be slow)
 chmod +x download_nemo_simple.py
