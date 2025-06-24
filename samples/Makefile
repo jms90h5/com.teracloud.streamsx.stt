@@ -69,7 +69,7 @@ setup-models:
 	@echo "Setting up models and test data..."
 	@if [ ! -d "$(TOOLKIT_PATH)/models/fastconformer_ctc_export" ]; then \
 		echo "❌ NeMo CTC model not found. Please run model export first:"; \
-		echo "   cd $(TOOLKIT_PATH) && python export_proven_working_model.py"; \
+		echo "   cd $(TOOLKIT_PATH) && python export_model_ctc_patched.py"; \
 		exit 1; \
 	fi
 	@if [ ! -f "$(TOOLKIT_PATH)/test_data/audio/librispeech-1995-1837-0001.wav" ]; then \
@@ -137,7 +137,7 @@ help:
 	@echo "Prerequisites:"
 	@echo "  1. Source Streams environment: source $(STREAMS_INSTALL)/bin/streamsprofile.sh"
 	@echo "  2. Build toolkit: make -C $(TOOLKIT_PATH)"
-	@echo "  3. Export NeMo model: cd $(TOOLKIT_PATH) && python export_proven_working_model.py"
+	@echo "  3. Export NeMo model: cd $(TOOLKIT_PATH) && python export_model_ctc_patched.py"
 	@echo ""
 	@echo "Quick start:"
 	@echo "  make status      # Check dependencies"
