@@ -32,7 +32,7 @@ outputs = session.run(None, {
 ## Broken Components (UPDATED June 23, 2025)
 
 ### 1. Wrong Model Being Used
-- **C++ tests use**: `models/nemo_fastconformer_streaming/conformer_ctc_dynamic.onnx` (2.6MB)
+- **C++ tests use**: `opt/models/nemo_fastconformer_streaming/conformer_ctc_dynamic.onnx` (2.6MB)
 - **This model expects**: `audio_signal` input, fixed 500 frames, different interface
 - **Result**: "Invalid Feed Input Name:audio_signal" error
 - **STATUS**: ✅ FIXED - Code now uses correct model path and "processed_signal" input name
@@ -134,7 +134,7 @@ Model paths need updating in test files to use the 471MB model
 ## Do NOT Trust These Files
 
 - `correct_python_features_*.npy` - Despite the name, these don't produce correct output
-- `models/fastconformer_ctc_export/` - This 45MB model has limited functionality
+- `opt/models/fastconformer_ctc_export/` - This 45MB model has limited functionality
 - Any documentation claiming the samples are "working" without verification
 
 ## Verified Working Configuration

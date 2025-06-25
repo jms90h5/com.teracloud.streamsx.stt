@@ -8,3 +8,7 @@ fastconformer_ctc_onnx/
 debug_extract/
 fastconformer_export_full/
 samples/output/
+
+# Migration artifacts
+migration_backup/
+samples_backup*/

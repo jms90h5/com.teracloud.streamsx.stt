@@ -2,7 +2,7 @@
 
 # ONNX Runtime location
 # First check if it's in the toolkit deps
-ONNX_LOCAL := ../deps/onnxruntime
+ONNX_LOCAL := ../lib/onnxruntime
 ifneq ($(wildcard $(ONNX_LOCAL)/lib/libonnxruntime.so),)
     ONNXRUNTIME_ROOT := $(ONNX_LOCAL)
 else

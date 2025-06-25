@@ -28,8 +28,8 @@ OVERALL_STATUS=0
 
 # 1. Check ONNX Runtime
 echo "1. Checking ONNX Runtime..."
-if [ -f "deps/onnxruntime/lib/libonnxruntime.so" ]; then
-    check_status 0 "ONNX Runtime found at deps/onnxruntime/lib/"
+if [ -f "lib/onnxruntime/lib/libonnxruntime.so" ]; then
+    check_status 0 "ONNX Runtime found at lib/onnxruntime/lib/"
 else
     check_status 1 "ONNX Runtime not found" "Run: ./setup_onnx_runtime.sh"
     OVERALL_STATUS=1
@@ -58,7 +58,7 @@ echo "3. Checking sample applications..."
 if [ -f "samples/CppONNX_OnnxSTT/test_nemo_standalone" ]; then
     check_status 0 "NeMo standalone test built"
     # Test if it runs
-    if LD_LIBRARY_PATH=deps/onnxruntime/lib:impl/lib:$LD_LIBRARY_PATH ./samples/CppONNX_OnnxSTT/test_nemo_standalone --help >/dev/null 2>&1; then
+    if LD_LIBRARY_PATH=lib/onnxruntime/lib:impl/lib:$LD_LIBRARY_PATH ./samples/CppONNX_OnnxSTT/test_nemo_standalone --help >/dev/null 2>&1; then
         check_status 0 "NeMo standalone test executable runs"
     else
         check_status 1 "NeMo standalone test fails to run" "Check library paths"
@@ -95,7 +95,7 @@ echo
 
 # 5. Check model files
 echo "5. Checking model files..."
-MODEL_DIR="models/fastconformer_ctc_export"
+MODEL_DIR="opt/models/fastconformer_ctc_export"
 if [ -d "$MODEL_DIR" ]; then
     check_status 0 "Model directory exists"
     if [ -f "$MODEL_DIR/model.onnx" ]; then
@@ -118,7 +118,7 @@ echo
 
 # 6. Check test data
 echo "6. Checking test data..."
-if [ -f "test_data/audio/librispeech-1995-1837-0001.raw" ]; then
+if [ -f "opt/test_data/audio/librispeech-1995-1837-0001.raw" ]; then
     check_status 0 "Test audio file available"
 else
     check_status 1 "Test audio file not found" "Download test data or provide your own 16kHz raw audio"
@@ -148,8 +148,8 @@ if [ $OVERALL_STATUS -eq 0 ]; then
     echo
     echo "2. Test with standalone application:"
     echo "   ./samples/CppONNX_OnnxSTT/test_nemo_standalone \\"
-    echo "     --nemo-model models/nemo_fastconformer_streaming/fastconformer_streaming.onnx \\"
-    echo "     --audio-file test_data/audio/librispeech-1995-1837-0001.raw"
+    echo "     --nemo-model opt/models/nemo_fastconformer_streaming/fastconformer_streaming.onnx \\"
+    echo "     --audio-file opt/test_data/audio/librispeech-1995-1837-0001.raw"
     echo
     echo "3. Use in SPL applications"
 else

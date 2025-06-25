@@ -18,13 +18,13 @@ The test suite validates the STT toolkit functionality at multiple levels:
 #### `test_real_nemo_fixed.cpp`
 - **Purpose**: Comprehensive standalone C++ test for NeMo CTC model
 - **Features**: Command-line options, WAV file support, performance benchmarking
-- **Model**: Uses current `models/fastconformer_ctc_export/model.onnx`
+- **Model**: Uses current `opt/models/fastconformer_ctc_export/model.onnx`
 - **Status**: ✅ **Recommended** - Most complete test program
 
 #### `test_nemo_ctc_simple.cpp`
 - **Purpose**: Basic functionality test for NeMoCTCImpl class
 - **Features**: Simple initialization and transcription test
-- **Model**: Uses current `models/fastconformer_ctc_export/model.onnx`
+- **Model**: Uses current `opt/models/fastconformer_ctc_export/model.onnx`
 - **Status**: ✅ **Useful** for basic testing
 
 ### **Verification Scripts**
@@ -134,7 +134,7 @@ Audio File → Feature Extraction → Model Inference → Text Output
 
 2. **Export the NeMo model:**
    ```bash
-   cd .. && python export_model_ctc_patched.py
+   cd .. && python impl/bin/export_model_ctc_patched.py
    ```
 
 3. **Verify setup:**
@@ -147,10 +147,10 @@ Audio File → Feature Extraction → Model Inference → Text Output
 #### Simple CTC Test
 ```bash
 cd test
-g++ -std=c++14 -O2 -I../impl/include -I../deps/onnxruntime/include \
+g++ -std=c++14 -O2 -I../impl/include -I../lib/onnxruntime/include \
     test_nemo_ctc_simple.cpp ../impl/lib/libs2t_impl.so \
-    -L../deps/onnxruntime/lib -lonnxruntime -ldl \
-    -Wl,-rpath,'$ORIGIN/../impl/lib' -Wl,-rpath,'$ORIGIN/../deps/onnxruntime/lib' \
+    -L../lib/onnxruntime/lib -lonnxruntime -ldl \
+    -Wl,-rpath,'$ORIGIN/../impl/lib' -Wl,-rpath,'$ORIGIN/../lib/onnxruntime/lib' \
     -o test_nemo_ctc_simple
 
 # Run
@@ -160,10 +160,10 @@ g++ -std=c++14 -O2 -I../impl/include -I../deps/onnxruntime/include \
 #### Comprehensive Fixed Test
 ```bash
 cd test
-g++ -std=c++14 -O2 -I../impl/include -I../deps/onnxruntime/include \
+g++ -std=c++14 -O2 -I../impl/include -I../lib/onnxruntime/include \
     test_real_nemo_fixed.cpp ../impl/lib/libs2t_impl.so \
-    -L../deps/onnxruntime/lib -lonnxruntime -ldl \
-    -Wl,-rpath,'$ORIGIN/../impl/lib' -Wl,-rpath,'$ORIGIN/../deps/onnxruntime/lib' \
+    -L../lib/onnxruntime/lib -lonnxruntime -ldl \
+    -Wl,-rpath,'$ORIGIN/../impl/lib' -Wl,-rpath,'$ORIGIN/../lib/onnxruntime/lib' \
     -o test_real_nemo_fixed
 
 # Run with options
@@ -175,7 +175,7 @@ g++ -std=c++14 -O2 -I../impl/include -I../deps/onnxruntime/include \
 
 **Important**: Always set library paths when running tests:
 ```bash
-export LD_LIBRARY_PATH=$PWD/../deps/onnxruntime/lib:$PWD/../impl/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$PWD/../lib/onnxruntime/lib:$PWD/../impl/lib:$LD_LIBRARY_PATH
 ```
 
 Or use the rpath settings shown in the build commands above.
@@ -184,7 +184,7 @@ Or use the rpath settings shown in the build commands above.
 
 ### Required Test Data Structure
 ```
-test_data/
+opt/test_data/
 ├── audio/
 │   ├── transcription_tests/
 │   │   ├── librispeech-1995-1837-0001.wav     # Known transcription
@@ -237,12 +237,12 @@ Peak memory: 387MB
 
 ### 1. Model Loading Failures
 - **Issue**: "Failed to initialize model"
-- **Check**: Model path exists: `../models/fastconformer_ctc_export/model.onnx`
-- **Fix**: Run `python export_model_ctc_patched.py` to export model
+- **Check**: Model path exists: `../opt/models/fastconformer_ctc_export/model.onnx`
+- **Fix**: Run `python impl/bin/export_model_ctc_patched.py` to export model
 
 ### 2. Library Loading Errors
 - **Issue**: "libonnxruntime.so: cannot open shared object file"
-- **Check**: `ls ../deps/onnxruntime/lib/libonnxruntime.so`
+- **Check**: `ls ../lib/onnxruntime/lib/libonnxruntime.so`
 - **Fix**: Set LD_LIBRARY_PATH or use rpath in build
 
 ### 3. Empty Transcriptions

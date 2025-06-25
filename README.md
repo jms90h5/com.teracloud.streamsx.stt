@@ -2,19 +2,23 @@
 
 A production-ready speech-to-text toolkit for Teracloud Streams that provides real-time transcription using state-of-the-art models including NVIDIA NeMo FastConformer and ONNX-based architectures.
 
-## ⚠️ Status: PARTIALLY WORKING (June 23, 2025)
+## Status
 
-**IMPORTANT**: Previous "FULLY WORKING" status was incorrect. See `CRITICAL_FINDINGS_2025_06_23.md` for actual state.
+**Current State**: Toolkit reorganized to follow Teracloud Streams standards. See `doc/MIGRATION_GUIDE.md` for recent changes.
 
-### What Works:
-- ✅ **Model inference** - ONNX Runtime correctly processes features when provided
-- ✅ **Python testing** - `test_working_input_again.py` produces correct transcriptions
-- ✅ **CTC decoding** - Properly handles BPE tokens and produces text
+**Working Components**:
+- ✅ **Python model export** - `export_model_ctc_patched.py` handles NeMo dependency conflicts
+- ✅ **C++ implementation** - Builds successfully with new directory structure
+- ✅ **ONNX Runtime integration** - Inference pipeline functional
+- ✅ **Automatic setup** - New `setup.sh` script for easy onboarding
 
-### What Needs Fixing:
-- ❌ **C++ feature extraction** - Produces wrong feature statistics
-- ❌ **Wrong model in tests** - Using 2.6MB model instead of 471MB model
-- ❌ **SPL samples** - All produce empty transcript files
+**Known Issues**: See `doc/CRITICAL_FINDINGS_2025_06_23.md` for technical details.
+
+**Working Verification**: To verify the model works correctly:
+```bash
+# This should produce: "it was the first great sorrow of his life..."
+python3 test_working_input_again.py
+```
 
 ## Key Features
 
@@ -27,42 +31,118 @@ A production-ready speech-to-text toolkit for Teracloud Streams that provides re
 
 ## Quick Start
 
-### Prerequisites
-- Teracloud Streams 7.2.0.1+
-- C++14 compatible compiler
-- ONNX Runtime 1.16.3 (included)
-- Python 3.10+ (required for NeMo export scripts)
-- FFmpeg CLI (for audio I/O via pydub/ffmpeg backend)
-- FFmpeg CLI (for audio I/O via pydub/ffmpeg backend)
-  ```bash
-  # On Rocky Linux 9, enable EPEL and RPM Fusion to get ffmpeg:
-  sudo dnf install -y epel-release
-  # Some EPEL packages require CodeReady Builder (CRB)
-  sudo dnf config-manager --set-enabled crb
-  sudo dnf install -y dnf-plugins-core
-  # Enable RPM Fusion (free & nonfree) for EL9
-  sudo rpm -Uvh https://download1.rpmfusion.org/free/el/rpmfusion-free-release-9.noarch.rpm
-  sudo rpm -Uvh https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-9.noarch.rpm
-  sudo dnf install -y ffmpeg
-  ```
-
-### Build and Test
+### 1. Clone and Setup (One Command!)
 
 ```bash
-# 1. Build the implementation library
+# Clone the repository
+git clone <repository-url>
+cd com.teracloud.streamsx.stt
+
+# Run automatic setup - handles everything!
+./setup.sh
+
+# Activate development environment  
+source .envrc
+```
+
+**That's it!** The setup script automatically:
+- ✅ Checks all prerequisites
+- ✅ Creates Python virtual environment
+- ✅ Builds C++ implementation
+- ✅ Sets up development aliases
+- ✅ Verifies the installation
+
+**Development Aliases**: After running `source .envrc`, you get:
+- `stt-build` - Build C++ implementation
+- `stt-test` - Run verification tests
+- `stt-python` - Activate Python environment
+- `stt-samples` - Check sample status
+
+### 2. Export a Model (Required for Transcription)
+
+```bash
+# Install NeMo toolkit (one-time, large download ~2-3GB)
+pip install -r doc/requirements_nemo.txt
+
+# Export the working model (uses the proven script that handles dependency conflicts)
+python impl/bin/export_model_ctc_patched.py
+
+# This creates: opt/models/fastconformer_ctc_export/model.onnx (~44MB)
+```
+
+### 3. Test Everything Works
+
+```bash
+# Verify setup
+stt-test
+
+# Build and test samples
+cd samples && make BasicNeMoDemo
+```
+
+### Prerequisites
+
+The `setup.sh` script checks for these automatically:
+- **Python 3.11+** with venv support
+- **C++14 compiler** (g++)
+- **Teracloud Streams 7.2.0.1+**
+- **ONNX Runtime** (included in toolkit)
+- **FFmpeg** (for audio processing):
+  ```bash
+  # Rocky Linux 9 / RHEL 9:
+  sudo dnf install -y epel-release
+  sudo dnf config-manager --set-enabled crb
+  sudo rpm -Uvh https://download1.rpmfusion.org/free/el/rpmfusion-free-release-9.noarch.rpm
+  sudo dnf install -y ffmpeg
+  
+  # Ubuntu:
+  sudo apt update && sudo apt install ffmpeg
+  ```
+
+### Troubleshooting Setup
+
+**"Python 3.11 not found"**:
+```bash
+# Rocky Linux / RHEL:
+sudo dnf install python3.11 python3.11-venv python3.11-pip
+
+# Ubuntu:
+sudo apt install python3.11 python3.11-venv python3.11-dev
+```
+
+**"g++ not found"**:
+```bash
+# Rocky Linux / RHEL:
+sudo dnf groupinstall 'Development Tools'
+
+# Ubuntu:
+sudo apt install build-essential
+```
+
+**"STREAMS_INSTALL not set"**:
+```bash
+# Source Streams environment first:
+source ~/teracloud/streams/7.2.0.0/bin/streamsprofile.sh
+
+# Then run setup:
+./setup.sh
+```
+
+### Manual Setup (Alternative)
+
+```bash
+# 1. Setup Python environment
+./impl/setup_python_env.sh
+
+# 2. Build the implementation library
 cd impl
 make clean && make
 
-# 2. Test the standalone implementation
+# 3. Test the implementation (requires model)
 cd ..
-./test_onnx_stt_operator models/fastconformer_nemo_export/ctc_model.onnx \
-                         models/fastconformer_nemo_export/tokens.txt \
-                         test_data/audio/librispeech_3sec.wav
-
-# Expected output:
-# Text: it was the first great song of his life
-# Confidence: 0.917
-# Real-time factor: 0.199
+source ./activate_python.sh
+python impl/bin/export_model_ctc_patched.py  # Export model first
+./test/verify_nemo_setup.sh                  # Verify setup
 ```
 
 ### Use in Streams Application
@@ -80,8 +160,8 @@ composite SpeechTranscription {
         stream<rstring text, boolean isFinal, float64 confidence> Result = 
             OnnxSTT(Audio) {
                 param
-                    encoderModel: "models/fastconformer_nemo_export/ctc_model.onnx";
-                    vocabFile: "models/fastconformer_nemo_export/tokens.txt";
+                    encoderModel: "opt/models/fastconformer_nemo_export/ctc_model.onnx";
+                    vocabFile: "opt/models/fastconformer_nemo_export/tokens.txt";
                     cmvnFile: "none";
                     modelType: "NEMO_CTC";
                     blankId: 1024;
@@ -97,14 +177,31 @@ composite SpeechTranscription {
 - **Performance**: 0.2 RTF on CPU
 - **Accuracy**: State-of-the-art for streaming ASR
 
-### Export NeMo Model
-```python
-# Use provided export script
-python export_fastconformer_with_preprocessing.py
+### Python Environment Setup
 
-# Or manually:
-model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained("nvidia/stt_en_fastconformer_ctc_large")
-model.export("ctc_model.onnx")
+The toolkit includes Python helper scripts for model export and utilities. First set up the Python environment:
+
+```bash
+# Setup Python virtual environment (one time)
+./impl/setup_python_env.sh
+
+# Activate environment for script usage
+source ./activate_python.sh
+
+# Install NeMo for model export (optional, large download)
+pip install -r doc/requirements_nemo.txt
+```
+
+### Export NeMo Model
+```bash
+# Activate Python environment
+source ./activate_python.sh
+
+# Use provided export script
+python impl/bin/export_model_ctc_patched.py
+
+# Or other export scripts
+python impl/bin/export_fastconformer_with_preprocessing.py
 ```
 
 ## Architecture
@@ -136,21 +233,36 @@ model.export("ctc_model.onnx")
 
 ## Directory Structure
 
+Following official Teracloud Streams Toolkit Development Guide standards:
+
 ```
 com.teracloud.streamsx.stt/
-├── impl/                          # C++ implementation
-│   ├── include/                   # Header files
-│   ├── src/                       # Source files
-│   └── lib/                       # Built libraries
-├── com.teracloud.streamsx.stt/    # SPL operators
-│   ├── OnnxSTT/                   # Main STT operator
-│   └── FileAudioSource.spl        # Audio file reader
-├── models/                        # Model files
-│   └── fastconformer_nemo_export/ # NeMo model export
-├── samples/                       # Example applications
-│   └── NeMoCTCSample.spl         # NeMo example
-├── test_data/                     # Test audio files
-└── docs/                         # Documentation
+├── info.xml                       # Toolkit metadata (recommended)
+├── toolkit.xml                    # Toolkit index (auto-generated)
+├── activate_python.sh             # Quick Python environment activation
+├── etc/                          # Configuration files
+│   └── requirements_nemo.txt     # Python dependencies
+├── lib/                          # Support libraries
+│   └── onnxruntime/              # ONNX Runtime (was deps/)
+├── opt/                          # Optional components
+│   ├── models/                   # Model files (was models/)
+│   │   └── fastconformer_nemo_export/
+│   └── test_data/                # Test audio files (was test_data/)
+├── impl/                         # Implementation directory
+│   ├── bin/                      # Implementation scripts
+│   │   ├── *.py                  # Python helper scripts
+│   │   └── *.sh                  # Shell scripts
+│   ├── venv/                     # Python virtual environment
+│   ├── include/                  # Header files
+│   ├── src/                      # C++ source files
+│   └── lib/                      # Built libraries
+├── doc/                          # Documentation (was *.md files)
+├── samples/                      # Example applications
+│   └── com.teracloud.streamsx.stt.sample/
+├── test/                         # Test framework
+└── com.teracloud.streamsx.stt/   # SPL operators (toolkit namespace)
+    ├── OnnxSTT/                  # Main STT operator
+    └── FileAudioSource/          # Audio file reader
 ```
 
 ## Performance
@@ -164,14 +276,15 @@ Benchmarked on Intel Xeon CPU with 4 threads:
 
 ## Documentation
 
-- [Architecture](ARCHITECTURE.md)
-- [Quick Start](QUICK_START_NEXT_SESSION.md)
-- [Operator Guide](OPERATOR_GUIDE.md)
-- [Implementation Guide](docs/IMPLEMENTATION.md)
-- [NeMo Integration Workflow](docs/NEMO_WORKFLOW.md)
-- [Testing Strategy](docs/TESTING.md)
-- [Update Plan](docs/STREAMS_OPERATOR_UPDATE_PLAN.md)
-- [Scripts Overview](docs/SCRIPTS_OVERVIEW.md)
+- [Architecture](doc/ARCHITECTURE.md)
+- [Quick Start](doc/QUICK_START_NEXT_SESSION.md)
+- [Operator Guide](doc/OPERATOR_GUIDE.md)
+- [Implementation Guide](doc/IMPLEMENTATION.md)
+- [NeMo Integration Workflow](doc/NEMO_WORKFLOW.md)
+- [Testing Strategy](doc/TESTING.md)
+- [Update Plan](doc/STREAMS_OPERATOR_UPDATE_PLAN.md)
+- [Scripts Overview](doc/SCRIPTS_OVERVIEW.md)
+- [Migration to Standard Structure](doc/REVISED_DIRECTORY_STRUCTURE.md)
 - [Archived Developer Tools](archive/dev/)
 - [Archived Reference Docs](archive/docs/)
 

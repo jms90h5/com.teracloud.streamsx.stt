@@ -1,86 +1,47 @@
-# Makefile for NeMo CTC Speech-to-Text Samples
-# Builds sample applications using the working NeMo CTC implementation
+# Makefile for STT Toolkit Samples
+# 
+# Note: Current status shows samples may not compile due to ONNX Runtime header conflicts.
+# See doc/ARCHITECTURE.md for details on known issues.
 
-STREAMS_INSTALL ?= $(HOME)/teracloud/streams/7.2.0.0
+STREAMS_INSTALL ?= $(HOME)/teracloud/streams/7.2.0.1
 TOOLKIT_PATH = ..
 
-# Samples to build
-SAMPLES = BasicNeMoDemo NeMoCTCRealtime NeMoFileTranscription
+# Available samples
+SAMPLES = BasicSTTExample SimpleTest WorkingNeMoRealtime NeMoCTCSample
 
 # Default target
-all: $(SAMPLES)
+all: check-environment $(SAMPLES)
 
-# Ensure toolkit is built first
-check-toolkit:
-	@echo "Checking if toolkit is built..."
-	@if [ ! -f "$(TOOLKIT_PATH)/impl/lib/libnemo_stt.so" ]; then \
-		echo "Building toolkit first..."; \
-		$(MAKE) -C $(TOOLKIT_PATH); \
+# Check if environment is properly set up
+check-environment:
+	@echo "Checking build environment..."
+	@if [ -z "$(STREAMS_INSTALL)" ]; then \
+		echo "❌ STREAMS_INSTALL not set"; \
+		exit 1; \
 	fi
+	@if [ ! -f "$(TOOLKIT_PATH)/toolkit.xml" ]; then \
+		echo "❌ Toolkit not indexed. Run: cd $(TOOLKIT_PATH) && spl-make-toolkit -i ."; \
+		exit 1; \
+	fi
+	@echo "✅ Environment checks passed"
 
-# Build individual samples
-BasicNeMoDemo: check-toolkit
-	@echo "Building BasicNeMoDemo..."
-	@mkdir -p output/BasicNeMoDemo
-	sc -a -t $(TOOLKIT_PATH) -M BasicNeMoDemo --output-directory output/BasicNeMoDemo
-	@echo "✅ BasicNeMoDemo built successfully"
-
-NeMoCTCRealtime: check-toolkit
-	@echo "Building NeMoCTCRealtime..."
-	@mkdir -p output/NeMoCTCRealtime
-	sc -a -t $(TOOLKIT_PATH) -M NeMoCTCRealtime --output-directory output/NeMoCTCRealtime
-	@echo "✅ NeMoCTCRealtime built successfully"
-
-NeMoFileTranscription: check-toolkit
-	@echo "Building NeMoFileTranscription..."
-	@mkdir -p output/NeMoFileTranscription
-	sc -a -t $(TOOLKIT_PATH) -M NeMoFileTranscription --output-directory output/NeMoFileTranscription
-	@echo "✅ NeMoFileTranscription built successfully"
+# Build basic example
+BasicSTTExample: check-environment
+	@echo "Building BasicSTTExample..."
+	@mkdir -p output/BasicSTTExample
+	sc -a -t $(TOOLKIT_PATH) -M BasicSTTExample \
+		--output-directory output/BasicSTTExample \
+		BasicExample/BasicSTTExample.spl
+	@echo "✅ BasicSTTExample build attempted"
 
 # Clean build artifacts
 clean:
 	rm -rf output/
 	@echo "✅ Cleaned build artifacts"
 
-# Test samples (requires models and test data)
-test: all
-	@echo "Testing BasicNeMoDemo..."
-	@if [ -f "$(TOOLKIT_PATH)/models/fastconformer_ctc_export/model.onnx" ] && \
-	   [ -f "$(TOOLKIT_PATH)/test_data/audio/librispeech-1995-1837-0001.wav" ]; then \
-		streamtool submitjob output/BasicNeMoDemo/BasicNeMoDemo.sab; \
-		echo "✅ BasicNeMoDemo test submitted"; \
-	else \
-		echo "❌ Missing models or test data. Run 'make setup-models' first."; \
-	fi
-
-# Test samples with real-time throttling
-test-throttled: all
-	@echo "Testing BasicNeMoDemo with real-time throttling..."
-	@if [ -f "$(TOOLKIT_PATH)/models/fastconformer_ctc_export/model.onnx" ] && \
-	   [ -f "$(TOOLKIT_PATH)/test_data/audio/librispeech-1995-1837-0001.wav" ]; then \
-		streamtool submitjob output/BasicNeMoDemo/BasicNeMoDemo.sab -P enableThrottling=true; \
-		echo "✅ BasicNeMoDemo throttled test submitted"; \
-	else \
-		echo "❌ Missing models or test data. Run 'make setup-models' first."; \
-	fi
-
-# Setup required models and test data
-setup-models:
-	@echo "Setting up models and test data..."
-	@if [ ! -d "$(TOOLKIT_PATH)/models/fastconformer_ctc_export" ]; then \
-		echo "❌ NeMo CTC model not found. Please run model export first:"; \
-		echo "   cd $(TOOLKIT_PATH) && python export_model_ctc_patched.py"; \
-		exit 1; \
-	fi
-	@if [ ! -f "$(TOOLKIT_PATH)/test_data/audio/librispeech-1995-1837-0001.wav" ]; then \
-		echo "❌ Test audio files not found. Please ensure test data is available."; \
-		exit 1; \
-	fi
-	@echo "✅ Models and test data are ready"
-
-# Show sample status
+# Check sample status
 status:
-	@echo "=== NeMo CTC Samples Status ==="
+	@echo "=== STT Toolkit Samples Status ==="
 	@echo "Toolkit path: $(TOOLKIT_PATH)"
 	@echo "Streams install: $(STREAMS_INSTALL)"
 	@echo ""
@@ -93,56 +54,29 @@ status:
 		fi; \
 	done
 	@echo ""
-	@echo "Required models:"
-	@if [ -f "$(TOOLKIT_PATH)/models/fastconformer_ctc_export/model.onnx" ]; then \
-		echo "  ✅ NeMo CTC model ($(shell stat -c%s $(TOOLKIT_PATH)/models/fastconformer_ctc_export/model.onnx 2>/dev/null | numfmt --to=iec)B)"; \
-	else \
-		echo "  ❌ NeMo CTC model (missing)"; \
-	fi
-	@if [ -f "$(TOOLKIT_PATH)/models/fastconformer_ctc_export/tokens.txt" ]; then \
-		echo "  ✅ Vocabulary file ($(shell wc -l < $(TOOLKIT_PATH)/models/fastconformer_ctc_export/tokens.txt 2>/dev/null) tokens)"; \
-	else \
-		echo "  ❌ Vocabulary file (missing)"; \
-	fi
-	@echo ""
-	@echo "Test data:"
-	@if [ -f "$(TOOLKIT_PATH)/test_data/audio/librispeech-1995-1837-0001.wav" ]; then \
-		echo "  ✅ LibriSpeech test file"; \
-	else \
-		echo "  ❌ LibriSpeech test file (missing)"; \
-	fi
-	@if [ -f "$(TOOLKIT_PATH)/test_data/audio/11-ibm-culture-2min-16k.wav" ]; then \
-		echo "  ✅ IBM Culture test file"; \
-	else \
-		echo "  ❌ IBM Culture test file (missing)"; \
-	fi
+	@echo "Known Issues:"
+	@echo "  ⚠️  ONNX Runtime header conflicts may prevent compilation"
+	@echo "  ⚠️  See doc/ARCHITECTURE.md for troubleshooting"
 
-# Help target
+# Help
 help:
-	@echo "NeMo CTC Speech-to-Text Samples"
-	@echo "================================"
+	@echo "STT Toolkit Samples"
+	@echo "==================="
 	@echo ""
 	@echo "Available targets:"
 	@echo "  all              - Build all samples"
-	@echo "  BasicNeMoDemo    - Build basic demo sample"
-	@echo "  NeMoCTCRealtime  - Build real-time processing sample"
-	@echo "  NeMoFileTranscription - Build file transcription sample"
+	@echo "  BasicSTTExample  - Build basic example"
 	@echo "  clean            - Remove build artifacts"
-	@echo "  test             - Test samples (requires models)"
-	@echo "  test-throttled   - Test samples with real-time throttling"
-	@echo "  setup-models     - Check model and test data availability"
-	@echo "  status           - Show build and dependency status"
+	@echo "  status           - Show build status"
 	@echo "  help             - Show this help"
 	@echo ""
 	@echo "Prerequisites:"
-	@echo "  1. Source Streams environment: source $(STREAMS_INSTALL)/bin/streamsprofile.sh"
-	@echo "  2. Build toolkit: make -C $(TOOLKIT_PATH)"
-	@echo "  3. Export NeMo model: cd $(TOOLKIT_PATH) && python export_model_ctc_patched.py"
+	@echo "  1. Source Streams environment"
+	@echo "  2. Index toolkit: cd $(TOOLKIT_PATH) && spl-make-toolkit -i ."
+	@echo "  3. Set up models (see toolkit documentation)"
 	@echo ""
-	@echo "Quick start:"
-	@echo "  make status      # Check dependencies"
-	@echo "  make all         # Build all samples"
-	@echo "  make test        # Test basic sample"
-	@echo "  make test-throttled # Test with real-time throttling"
+	@echo "Known Issues:"
+	@echo "  - ONNX Runtime header conflicts may prevent compilation"
+	@echo "  - See doc/ARCHITECTURE.md for current status and fixes"
 
-.PHONY: all clean test test-throttled setup-models status help check-toolkit $(SAMPLES)
+.PHONY: all clean status help check-environment $(SAMPLES)

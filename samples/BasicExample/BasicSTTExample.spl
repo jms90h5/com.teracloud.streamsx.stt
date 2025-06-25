@@ -1,0 +1,42 @@
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * Basic Speech-to-Text Example
+ * 
+ * Simple demonstration of NeMo FastConformer speech recognition.
+ * Note: This sample requires proper model setup and may not compile 
+ * due to ONNX Runtime header conflicts (see ARCHITECTURE.md).
+ */
+composite BasicSTTExample {
+    graph
+        // Audio source - reads from test file
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "../data/test_audio.wav";
+                blockSize: 16384u;  // 1 second chunks
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // Speech recognition using NeMo FastConformer
+        stream<rstring transcription> Transcription = NeMoSTT(AudioStream) {
+            param
+                modelPath: "../opt/models/fastconformer_nemo_export/ctc_model.onnx";
+                tokensPath: "../opt/models/fastconformer_nemo_export/tokens.txt";
+        }
+        
+        // Display and save results
+        () as Display = Custom(Transcription) {
+            logic
+                onTuple Transcription: {
+                    printStringLn("Transcription: " + transcription);
+                }
+        }
+        
+        () as FileWriter = FileSink(Transcription) {
+            param
+                file: "transcription_output.txt";
+                format: txt;
+        }
+}
