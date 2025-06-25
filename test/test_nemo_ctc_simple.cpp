@@ -6,8 +6,8 @@ int main() {
     
     NeMoCTCImpl nemo;
     
-    std::string model_path = "../models/fastconformer_nemo_export/ctc_model.onnx";
-    std::string tokens_path = "../models/fastconformer_nemo_export/tokens.txt";
+    std::string model_path = "../models/fastconformer_ctc_export/model.onnx";
+    std::string tokens_path = "../models/fastconformer_ctc_export/tokens.txt";
     
     std::cout << "Initializing model..." << std::endl;
     if (!nemo.initialize(model_path, tokens_path)) {

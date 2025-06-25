@@ -23,7 +23,7 @@
 using namespace onnx_stt;
 
 struct TestConfig {
-    std::string nemo_model_path = "models/fastconformer_nemo_export/ctc_model.onnx";
+    std::string nemo_model_path = "models/fastconformer_ctc_export/model.onnx";
     std::string audio_file_path = "test_data/audio/librispeech-1995-1837-0001.wav";
     bool enable_vad = true;
     bool verbose = false;

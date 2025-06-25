@@ -95,17 +95,23 @@ echo
 
 # 5. Check model files
 echo "5. Checking model files..."
-MODEL_DIR="models/nemo_fastconformer_streaming"
+MODEL_DIR="models/fastconformer_ctc_export"
 if [ -d "$MODEL_DIR" ]; then
     check_status 0 "Model directory exists"
-    if [ -f "$MODEL_DIR/fastconformer_streaming.onnx" ]; then
-        check_status 0 "NeMo ONNX model found"
+    if [ -f "$MODEL_DIR/model.onnx" ]; then
+        check_status 0 "NeMo CTC ONNX model found"
+        if [ -f "$MODEL_DIR/tokens.txt" ]; then
+            check_status 0 "Vocabulary file found"
+        else
+            check_status 1 "Vocabulary file missing" "Should be at $MODEL_DIR/tokens.txt"
+        fi
     else
-        check_status 1 "NeMo ONNX model not found" "Export a model using: python3 export_nemo_to_onnx.py"
+        check_status 1 "NeMo ONNX model not found" "Export a model using: python export_model_ctc_patched.py"
         echo -e "  ${YELLOW}Or provide your own ONNX model exported from NeMo${NC}"
+        OVERALL_STATUS=1
     fi
 else
-    check_status 1 "Model directory not created" "Run: ./download_nemo_model.sh"
+    check_status 1 "Model directory not created" "Run: python export_model_ctc_patched.py"
     OVERALL_STATUS=1
 fi
 echo
