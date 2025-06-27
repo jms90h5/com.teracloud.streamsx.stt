@@ -3,7 +3,7 @@
 
 #include "ModelInterface.hpp"
 #include "CacheManager.hpp"
-#include <onnxruntime_cxx_api.h>
+#include "onnx_wrapper.hpp"
 #include <memory>
 #include <string>
 #include <vector>

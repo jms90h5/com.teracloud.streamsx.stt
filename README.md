@@ -128,6 +128,13 @@ source ~/teracloud/streams/7.2.0.0/bin/streamsprofile.sh
 ./setup.sh
 ```
 
+**C++ Compilation Fails with `NO_EXCEPTION` error**:
+*   **Symptom**: The build fails with a compiler error similar to `error: expected unqualified-id before 'noexcept'` pointing to the ONNX Runtime headers.
+*   **Cause**: ONNX Runtime's headers define a macro `NO_EXCEPTION` which conflicts with identifiers used in the Teracloud Streams SDK headers.
+*   **Solution**: The toolkit now uses an isolation header `impl/include/onnx_wrapper.hpp`. This file includes the necessary ONNX headers and then immediately undefines the conflicting macro. If you are adding new C++ files that require the ONNX API, include `onnx_wrapper.hpp` instead of including `<onnxruntime_cxx_api.h>` directly.
+
+
+
 ### Manual Setup (Alternative)
 
 ```bash
