@@ -36,16 +36,16 @@ achieving 30x real-time performance with perfect transcription quality.
           <cmn:description>ONNX Runtime library</cmn:description>
           <cmn:managedLibrary>
             <cmn:lib>onnxruntime</cmn:lib>
-            <cmn:libPath>../../deps/onnxruntime/lib</cmn:libPath>
-            <cmn:includePath>../../deps/onnxruntime/include</cmn:includePath>
+            <cmn:libPath>../../lib/onnxruntime/lib</cmn:libPath>
+            <cmn:includePath>../../lib/onnxruntime/include</cmn:includePath>
           </cmn:managedLibrary>
         </library>
         <library>
           <cmn:description>Kaldi native fbank library</cmn:description>
           <cmn:managedLibrary>
             <cmn:lib>kaldi-native-fbank-core</cmn:lib>
-            <cmn:libPath>../../deps/kaldi-native-fbank/lib</cmn:libPath>
-            <cmn:includePath>../../deps/kaldi-native-fbank/include</cmn:includePath>
+            <cmn:libPath>../../impl/lib</cmn:libPath>
+            <cmn:includePath>../../impl/include</cmn:includePath>
           </cmn:managedLibrary>
         </library>
       </libraryDependencies>

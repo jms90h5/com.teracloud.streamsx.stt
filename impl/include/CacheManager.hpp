@@ -5,7 +5,7 @@
 #include <string>
 #include <map>
 #include <memory>
-#include <onnxruntime_cxx_api.h>
+#include "onnx_wrapper.hpp"
 
 namespace onnx_stt {
 

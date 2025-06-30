@@ -1,0 +1,223 @@
+<%
+    # Get operator parameters with defaults
+    my $stereoFormatParam = $model->getParameterByName("stereoFormat");
+    my $stereoFormat = $stereoFormatParam ? 
+        $stereoFormatParam->getValueAt(0)->getCppExpression() : '"interleaved"';
+        
+    my $encodingParam = $model->getParameterByName("encoding");
+    my $encoding = $encodingParam ? 
+        $encodingParam->getValueAt(0)->getCppExpression() : '"pcm16"';
+        
+    my $leftChannelRoleParam = $model->getParameterByName("leftChannelRole");
+    my $leftChannelRole = $leftChannelRoleParam ? 
+        $leftChannelRoleParam->getValueAt(0)->getCppExpression() : '"caller"';
+        
+    my $rightChannelRoleParam = $model->getParameterByName("rightChannelRole");
+    my $rightChannelRole = $rightChannelRoleParam ? 
+        $rightChannelRoleParam->getValueAt(0)->getCppExpression() : '"agent"';
+        
+    my $sampleRateParam = $model->getParameterByName("sampleRate");
+    my $sampleRate = $sampleRateParam ? 
+        $sampleRateParam->getValueAt(0)->getCppExpression() : '8000';
+        
+    my $targetSampleRateParam = $model->getParameterByName("targetSampleRate");
+    my $targetSampleRate = $targetSampleRateParam ? 
+        $targetSampleRateParam->getValueAt(0)->getCppExpression() : '0';
+%>
+
+<%SPL::CodeGen::implementationPrologue($model);%>
+
+<%SPL::CodeGen::includeStandardOperatorIncludes();%>
+
+// Constructor
+MY_OPERATOR::MY_OPERATOR()
+    : leftChannelRole_(<%=$leftChannelRole%>),
+      rightChannelRole_(<%=$rightChannelRole%>),
+      stereoFormat_(<%=$stereoFormat%>),
+      encoding_(<%=$encoding%>),
+      sampleRate_(<%=$sampleRate%>),
+      targetSampleRate_(<%=$targetSampleRate%>),
+      tuplesProcessed_(0),
+      bytesProcessed_(0)
+{
+    SPLAPPTRC(L_DEBUG, "AudioChannelSplitter constructor", SPL_OPER_DBG);
+}
+
+// Destructor
+MY_OPERATOR::~MY_OPERATOR() 
+{
+    SPLAPPTRC(L_DEBUG, "AudioChannelSplitter destructor - processed " 
+              << tuplesProcessed_ << " tuples, " 
+              << bytesProcessed_ << " bytes", SPL_OPER_DBG);
+}
+
+// Notify port readiness
+void MY_OPERATOR::allPortsReady() 
+{
+    SPLAPPTRC(L_INFO, "AudioChannelSplitter ready - "
+              << "format=" << stereoFormat_ 
+              << ", encoding=" << encoding_
+              << ", sampleRate=" << sampleRate_ 
+              << ", targetSampleRate=" << targetSampleRate_
+              << ", leftRole=" << leftChannelRole_
+              << ", rightRole=" << rightChannelRole_, 
+              SPL_OPER_DBG);
+}
+
+// Notify pending shutdown
+void MY_OPERATOR::prepareToShutdown() 
+{
+    SPLAPPTRC(L_DEBUG, "AudioChannelSplitter shutdown", SPL_OPER_DBG);
+}
+
+// Process incoming tuples
+void MY_OPERATOR::process(Tuple const & tuple, uint32_t port)
+{
+    const IPort0Type & ituple = static_cast<const IPort0Type &>(tuple);
+    
+    // Get audio data blob - look for first blob attribute
+    // This is a simplified approach - in production, you might want to
+    // specify the attribute name via a parameter
+    SPL::blob audioData;
+    uint64_t audioTimestamp = 0;
+    
+    // Try to get common attribute names
+    <%  # Generate code to extract audio blob and timestamp
+        # This is simplified - a real implementation would be more flexible
+    %>
+    try {
+        // Get the audio data (assuming it's the first blob attribute)
+        audioData = ituple.getAttributeValue(0).getBlob();
+        
+        // Try to get audioTimestamp if available
+        if (ituple.getNumberOfAttributes() > 1) {
+            // Assuming second attribute might be audioTimestamp
+            audioTimestamp = ituple.getAttributeValue(1).getUInt64();
+        }
+    } catch (const std::exception& e) {
+        SPLAPPTRC(L_ERROR, "Failed to extract audio data: " << e.what(), SPL_OPER_DBG);
+        return;
+    }
+    
+    // Process the stereo audio
+    processStereoAudioBlob(audioData, audioTimestamp);
+    
+    tuplesProcessed_++;
+    bytesProcessed_ += audioData.getSize();
+}
+
+// Process punctuation
+void MY_OPERATOR::process(Punctuation const & punct, uint32_t port)
+{
+    SPLAPPTRC(L_DEBUG, "AudioChannelSplitter received punctuation: " << punct, SPL_OPER_DBG);
+    
+    // Forward punctuation to both output ports
+    submit(punct, 0);  // Left channel
+    submit(punct, 1);  // Right channel
+}
+
+// Process stereo audio blob
+void MY_OPERATOR::processStereoAudioBlob(const SPL::blob& audioData, uint64_t audioTimestamp)
+{
+    using namespace com::teracloud::streamsx::stt;
+    
+    const uint8_t* data = audioData.getData();
+    size_t dataSize = audioData.getSize();
+    
+    SPLAPPTRC(L_DEBUG, "Processing stereo audio: " << dataSize << " bytes", SPL_OPER_DBG);
+    
+    try {
+        StereoAudioSplitter::ChannelBuffers channels;
+        StereoAudioSplitter::SplitOptions options;
+        options.sourceSampleRate = sampleRate_;
+        options.targetSampleRate = targetSampleRate_;
+        options.normalizeFloat = false;  // Keep as PCM values for now
+        
+        // Split based on encoding type
+        if (encoding_ == "pcm16") {
+            const int16_t* pcmData = reinterpret_cast<const int16_t*>(data);
+            size_t numSamples = dataSize / sizeof(int16_t);
+            channels = StereoAudioSplitter::splitInterleavedPCM16(pcmData, numSamples, options);
+        } else if (encoding_ == "pcm8") {
+            size_t numSamples = dataSize;
+            channels = StereoAudioSplitter::splitInterleavedPCM8(data, numSamples, options);
+        } else if (encoding_ == "ulaw") {
+            channels = StereoAudioSplitter::splitG711uLaw(data, dataSize, 
+                                                          stereoFormat_ == "interleaved");
+        } else if (encoding_ == "alaw") {
+            channels = StereoAudioSplitter::splitG711aLaw(data, dataSize, 
+                                                          stereoFormat_ == "interleaved");
+        } else {
+            SPLAPPTRC(L_ERROR, "Unsupported encoding: " << encoding_, SPL_OPER_DBG);
+            return;
+        }
+        
+        // Output the separated channels
+        outputChannelData(channels.left, leftChannelRole_, 0, audioTimestamp, 0);
+        outputChannelData(channels.right, rightChannelRole_, 1, audioTimestamp, 1);
+        
+    } catch (const std::exception& e) {
+        SPLAPPTRC(L_ERROR, "Error splitting audio: " << e.what(), SPL_OPER_DBG);
+    }
+}
+
+// Output channel data to the appropriate port
+void MY_OPERATOR::outputChannelData(const std::vector<float>& channelData, 
+                                    const std::string& channelRole,
+                                    int32_t channelNumber,
+                                    uint64_t audioTimestamp,
+                                    uint32_t outputPort)
+{
+    // Convert float samples back to blob
+    SPL::blob outputBlob = floatVectorToBlob(channelData, encoding_);
+    
+    // Create output tuple based on the output port schema
+    // This is simplified - actual implementation would match the exact schema
+    if (outputPort == 0) {
+        OPort0Type otuple;
+        // Set attributes based on output schema
+        // Assuming ChannelAudioStream type with audioData, timestamp, channelInfo
+        otuple.setAttributeValue(0, outputBlob);  // audioData
+        otuple.setAttributeValue(1, audioTimestamp);   // audioTimestamp
+        
+        // Create channel metadata
+        // This would need to match the actual ChannelMetadata type structure
+        submit(otuple, 0);
+    } else {
+        OPort1Type otuple;
+        otuple.setAttributeValue(0, outputBlob);  // audioData
+        otuple.setAttributeValue(1, audioTimestamp);   // audioTimestamp
+        submit(otuple, 1);
+    }
+    
+    SPLAPPTRC(L_DEBUG, "Output " << channelData.size() << " samples to port " 
+              << outputPort << " (role: " << channelRole << ")", SPL_OPER_DBG);
+}
+
+// Convert float vector to blob based on encoding
+SPL::blob MY_OPERATOR::floatVectorToBlob(const std::vector<float>& samples, 
+                                         const std::string& encoding)
+{
+    if (encoding == "pcm16" || encoding == "ulaw" || encoding == "alaw") {
+        // Convert float samples back to int16
+        std::vector<int16_t> pcm16(samples.size());
+        for (size_t i = 0; i < samples.size(); ++i) {
+            // Assuming samples are already in PCM range, not normalized
+            pcm16[i] = static_cast<int16_t>(samples[i]);
+        }
+        return SPL::blob(reinterpret_cast<const uint8_t*>(pcm16.data()), 
+                        pcm16.size() * sizeof(int16_t));
+    } else if (encoding == "pcm8") {
+        // Convert to 8-bit PCM
+        std::vector<uint8_t> pcm8(samples.size());
+        for (size_t i = 0; i < samples.size(); ++i) {
+            pcm8[i] = static_cast<uint8_t>(samples[i] + 128);
+        }
+        return SPL::blob(pcm8.data(), pcm8.size());
+    }
+    
+    // Default: return empty blob
+    return SPL::blob();
+}
+
+<%SPL::CodeGen::implementationEpilogue($model);%>

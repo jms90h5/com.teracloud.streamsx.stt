@@ -1,0 +1,89 @@
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * Basic test of 2-channel audio processing.
+ * Reads a stereo WAV file and displays channel information.
+ */
+composite TwoChannelBasicTest {
+    param
+        expression<rstring> $audioFile: 
+            getSubmissionTimeValue("audioFile", 
+                "../OneDrive_2_6-30-2025/RTP-Audio-narrowband-2channel-G711.wav");
+                
+    graph
+        // Read stereo audio file and split channels
+        (stream<ChannelAudioStream> CallerAudio;
+         stream<ChannelAudioStream> AgentAudio) = StereoFileAudioSource() {
+            param
+                filename: $audioFile;
+                blockSize: 8000u;  // 0.5 second at 8kHz stereo
+                leftChannelRole: "caller";
+                rightChannelRole: "agent";
+                encoding: pcm16;
+                sampleRate: 8000;
+        }
+        
+        // Display caller channel info
+        () as CallerInfo = Custom(CallerAudio) {
+            logic
+                state: {
+                    mutable int32 tupleCount = 0;
+                    mutable uint64 totalBytes = 0ul;
+                }
+                onTuple CallerAudio: {
+                    tupleCount++;
+                    totalBytes += (uint64)size(CallerAudio.audioData);
+                    
+                    if (tupleCount <= 5 || tupleCount % 100 == 0) {
+                        uint32 dataSize = size(CallerAudio.audioData);
+                        uint64 ts = CallerAudio.audioTimestamp;
+                        int32 chan = CallerAudio.channelInfo.channelNumber;
+                        rstring role = CallerAudio.channelInfo.channelRole;
+                        
+                        printStringLn("[CALLER] Tuple " + (rstring)tupleCount);
+                        printStringLn("  bytes: " + (rstring)dataSize);
+                        printStringLn("  timestamp: " + (rstring)ts + "ms");
+                        printStringLn("  channel: " + (rstring)chan);
+                        printStringLn("  role: " + role);
+                    }
+                }
+                onPunct CallerAudio: {
+                    if (currentPunct() == Sys.FinalMarker) {
+                        printStringLn("[CALLER] Complete - " + (rstring)tupleCount + 
+                                     " tuples, " + (rstring)totalBytes + " bytes total");
+                    }
+                }
+        }
+        
+        // Display agent channel info
+        () as AgentInfo = Custom(AgentAudio) {
+            logic
+                state: {
+                    mutable int32 tupleCount = 0;
+                    mutable uint64 totalBytes = 0ul;
+                }
+                onTuple AgentAudio: {
+                    tupleCount++;
+                    totalBytes += (uint64)size(AgentAudio.audioData);
+                    
+                    if (tupleCount <= 5 || tupleCount % 100 == 0) {
+                        uint32 dataSize = size(AgentAudio.audioData);
+                        uint64 ts = AgentAudio.audioTimestamp;
+                        int32 chan = AgentAudio.channelInfo.channelNumber;
+                        rstring role = AgentAudio.channelInfo.channelRole;
+                        
+                        printStringLn("[AGENT] Tuple " + (rstring)tupleCount);
+                        printStringLn("  bytes: " + (rstring)dataSize);
+                        printStringLn("  timestamp: " + (rstring)ts + "ms");
+                        printStringLn("  channel: " + (rstring)chan);
+                        printStringLn("  role: " + role);
+                    }
+                }
+                onPunct AgentAudio: {
+                    if (currentPunct() == Sys.FinalMarker) {
+                        printStringLn("[AGENT] Complete - " + (rstring)tupleCount + 
+                                     " tuples, " + (rstring)totalBytes + " bytes total");
+                    }
+                }
+        }
+}

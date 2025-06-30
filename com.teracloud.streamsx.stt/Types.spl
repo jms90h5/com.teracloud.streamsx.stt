@@ -1,0 +1,79 @@
+namespace com.teracloud.streamsx.stt;
+
+/**
+ * Common types for speech-to-text processing
+ */
+
+/**
+ * Metadata for identifying audio channels in multi-channel streams.
+ * Used to track channel-specific information throughout the processing pipeline.
+ */
+type ChannelMetadata = tuple<
+    int32 channelNumber,          // 0-based channel index (0=left/caller, 1=right/agent)
+    rstring channelRole,          // Semantic role: "caller", "agent", "left", "right", "unknown"
+    rstring phoneNumber,          // Optional phone number for telephony applications
+    rstring speakerId,            // Optional speaker identifier for diarization
+    map<rstring,rstring> additionalMetadata  // Extensible metadata (e.g., SIP headers)
+>;
+
+/**
+ * Stereo audio chunk with separate channel data.
+ * Used for processing 2-channel audio before channel separation.
+ */
+type StereoAudioChunk = tuple<
+    blob leftChannelData,         // PCM audio data for left channel (channel 0)
+    blob rightChannelData,        // PCM audio data for right channel (channel 1)
+    uint64 audioTimestamp,        // Timestamp in milliseconds since start
+    int32 sampleRate,             // Sample rate in Hz (e.g., 8000, 16000, 44100)
+    int32 bitsPerSample,          // Bits per sample (8, 16, 24, 32)
+    rstring encoding              // Audio encoding: "pcm", "ulaw", "alaw"
+>;
+
+/**
+ * Single channel audio stream with metadata.
+ * Standard format for audio after channel separation.
+ */
+type ChannelAudioStream = tuple<
+    blob audioData,               // PCM audio data for single channel
+    uint64 audioTimestamp,        // Timestamp in milliseconds since start
+    ChannelMetadata channelInfo,  // Channel identification and metadata
+    int32 sampleRate,             // Sample rate in Hz
+    int32 bitsPerSample          // Bits per sample
+>;
+
+/**
+ * Transcription result with channel information.
+ * Extends standard transcription with channel metadata.
+ */
+type ChannelTranscription = tuple<
+    rstring text,                 // Transcribed text
+    float64 confidence,           // Confidence score [0.0, 1.0]
+    boolean isFinal,              // True if this is a final transcription
+    ChannelMetadata channelInfo,  // Channel identification
+    uint64 startTime,             // Start time of transcribed segment (ms)
+    uint64 endTime               // End time of transcribed segment (ms)
+>;
+
+/**
+ * Voice Gateway call metadata.
+ * Used for telephony integration scenarios.
+ */
+type CallMetadata = tuple<
+    rstring callId,               // Unique call identifier
+    rstring callerNumber,         // Caller phone number
+    rstring calledNumber,         // Called phone number
+    timestamp callStartTime,      // Call start timestamp
+    timestamp callEndTime,        // Call end timestamp (null if ongoing)
+    rstring callDirection,        // "inbound" or "outbound"
+    map<rstring,rstring> sipHeaders  // SIP headers if available
+>;
+
+/**
+ * Audio format enumeration for common telephony codecs
+ */
+type AudioFormat = enum { pcm16, pcm8, ulaw, alaw, opus, g729 };
+
+/**
+ * Channel role enumeration for common scenarios
+ */
+type ChannelRole = enum { caller, agent, left, right, customer, representative, unknown };

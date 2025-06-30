@@ -1,0 +1,60 @@
+<%
+    # Get operator parameters
+    my $stereoFormat = $model->getParameterByName("stereoFormat");
+    my $encoding = $model->getParameterByName("encoding");
+    my $leftChannelRole = $model->getParameterByName("leftChannelRole");
+    my $rightChannelRole = $model->getParameterByName("rightChannelRole");
+    my $sampleRate = $model->getParameterByName("sampleRate");
+    my $targetSampleRate = $model->getParameterByName("targetSampleRate");
+%>
+
+/* Additional includes for AudioChannelSplitter operator */
+#include <StereoAudioSplitter.hpp>
+#include <memory>
+#include <vector>
+
+<%SPL::CodeGen::headerPrologue($model);%>
+
+class MY_OPERATOR : public MY_BASE_OPERATOR 
+{
+public:
+    MY_OPERATOR();
+    virtual ~MY_OPERATOR();
+    
+    void allPortsReady();
+    void prepareToShutdown();
+    
+    void process(Tuple const & tuple, uint32_t port);
+    void process(Punctuation const & punct, uint32_t port);
+    
+private:
+    // Operator parameters
+    std::string leftChannelRole_;
+    std::string rightChannelRole_;
+    std::string stereoFormat_;
+    std::string encoding_;
+    int32_t sampleRate_;
+    int32_t targetSampleRate_;
+    
+    // Processing state
+    uint64_t tuplesProcessed_;
+    uint64_t bytesProcessed_;
+    
+    // Channel buffers for current processing
+    std::vector<float> leftBuffer_;
+    std::vector<float> rightBuffer_;
+    
+    // Helper methods
+    void processStereoAudioBlob(const SPL::blob& audioData, uint64_t audioTimestamp);
+    void outputChannelData(const std::vector<float>& channelData, 
+                          const std::string& channelRole,
+                          int32_t channelNumber,
+                          uint64_t audioTimestamp,
+                          uint32_t outputPort);
+    
+    // Convert float samples back to blob for output
+    SPL::blob floatVectorToBlob(const std::vector<float>& samples, 
+                                const std::string& encoding);
+};
+
+<%SPL::CodeGen::headerEpilogue($model);%>

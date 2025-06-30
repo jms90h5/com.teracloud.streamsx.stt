@@ -29,8 +29,8 @@
           <cmn:description>ONNX Runtime</cmn:description>
           <cmn:managedLibrary>
             <cmn:lib>onnxruntime</cmn:lib>
-            <cmn:libPath>../../deps/onnxruntime/lib</cmn:libPath>
-            <cmn:includePath>../../deps/onnxruntime/include</cmn:includePath>
+            <cmn:libPath>../../lib/onnxruntime/lib</cmn:libPath>
+            <cmn:includePath>../../lib/onnxruntime/include</cmn:includePath>
           </cmn:managedLibrary>
         </library>
       </libraryDependencies>

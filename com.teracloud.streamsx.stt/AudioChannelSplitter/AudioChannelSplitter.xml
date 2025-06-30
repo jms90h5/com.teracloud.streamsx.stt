@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<operatorModel xmlns="http://www.ibm.com/xmlns/prod/streams/spl/operator" 
+               xmlns:cmn="http://www.ibm.com/xmlns/prod/streams/spl/common">
+  <cppOperatorModel>
+    <context>
+      <description>
+The AudioChannelSplitter operator splits stereo audio input into separate left and right channel streams.
+It supports various stereo formats including interleaved PCM, non-interleaved PCM, and G.711 telephony codecs.
+
+This operator is designed for processing 2-channel audio in telephony and call center applications,
+where the left channel typically contains the caller audio and the right channel contains the agent audio.
+
+The operator can optionally resample audio from 8kHz to 16kHz for compatibility with speech recognition
+models that require higher sample rates.
+
+**Input Port**: Expects a stream containing stereo audio data in blob format
+**Output Ports**: 
+- Port 0: Left channel audio stream
+- Port 1: Right channel audio stream
+      </description>
+      <customLiterals>
+        <enumeration>
+          <name>StereoFormat</name>
+          <value>interleaved</value>
+          <value>nonInterleaved</value>
+        </enumeration>
+        <enumeration>
+          <name>AudioEncoding</name>
+          <value>pcm16</value>
+          <value>pcm8</value>
+          <value>ulaw</value>
+          <value>alaw</value>
+        </enumeration>
+      </customLiterals>
+      <libraryDependencies>
+        <library>
+          <cmn:description>Speech-to-text implementation library</cmn:description>
+          <cmn:managedLibrary>
+            <cmn:lib>s2t_impl</cmn:lib>
+            <cmn:libPath>../../impl/lib</cmn:libPath>
+            <cmn:includePath>../../impl/include</cmn:includePath>
+          </cmn:managedLibrary>
+        </library>
+      </libraryDependencies>
+      <providesSingleThreadedContext>Always</providesSingleThreadedContext>
+    </context>
+    <parameters>
+      <allowAny>false</allowAny>
+      <parameter>
+        <name>stereoFormat</name>
+        <description>Format of the input stereo audio (default: interleaved)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>CustomLiteral</expressionMode>
+        <type>StereoFormat</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>encoding</name>
+        <description>Audio encoding type (default: pcm16)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>CustomLiteral</expressionMode>
+        <type>AudioEncoding</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>leftChannelRole</name>
+        <description>Semantic role for left channel (default: "caller")</description>
+        <optional>true</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>rightChannelRole</name>
+        <description>Semantic role for right channel (default: "agent")</description>
+        <optional>true</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>sampleRate</name>
+        <description>Input audio sample rate in Hz (default: 8000)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>int32</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>targetSampleRate</name>
+        <description>Target sample rate for resampling, 0 = no resampling (default: 0)</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>int32</type>
+        <cardinality>1</cardinality>
+      </parameter>
+    </parameters>
+    <inputPorts>
+      <inputPortSet>
+        <description>Stereo audio input stream</description>
+        <tupleMutationAllowed>false</tupleMutationAllowed>
+        <windowingMode>NonWindowed</windowingMode>
+        <windowPunctuationInputMode>Oblivious</windowPunctuationInputMode>
+        <cardinality>1</cardinality>
+        <optional>false</optional>
+      </inputPortSet>
+    </inputPorts>
+    <outputPorts>
+      <outputPortSet>
+        <description>Left channel output stream</description>
+        <expressionMode>Expression</expressionMode>
+        <autoAssignment>false</autoAssignment>
+        <completeAssignment>false</completeAssignment>
+        <rewriteAllowed>true</rewriteAllowed>
+        <windowPunctuationOutputMode>Preserving</windowPunctuationOutputMode>
+        <tupleMutationAllowed>true</tupleMutationAllowed>
+        <cardinality>1</cardinality>
+        <optional>false</optional>
+      </outputPortSet>
+      <outputPortSet>
+        <description>Right channel output stream</description>
+        <expressionMode>Expression</expressionMode>
+        <autoAssignment>false</autoAssignment>
+        <completeAssignment>false</completeAssignment>
+        <rewriteAllowed>true</rewriteAllowed>
+        <windowPunctuationOutputMode>Preserving</windowPunctuationOutputMode>
+        <tupleMutationAllowed>true</tupleMutationAllowed>
+        <cardinality>1</cardinality>
+        <optional>false</optional>
+      </outputPortSet>
+    </outputPorts>
+  </cppOperatorModel>
+</operatorModel>

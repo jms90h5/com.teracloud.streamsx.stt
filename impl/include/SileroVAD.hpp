@@ -2,7 +2,7 @@
 #define SILERO_VAD_HPP
 
 #include "VADInterface.hpp"
-#include <onnxruntime_cxx_api.h>
+#include "onnx_wrapper.hpp"
 #include <memory>
 #include <vector>
 #include <string>

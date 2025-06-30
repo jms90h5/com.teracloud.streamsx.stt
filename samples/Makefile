@@ -31,7 +31,7 @@ BasicSTTExample: check-environment
 	@mkdir -p output/BasicSTTExample
 	sc -a -t $(TOOLKIT_PATH) -M BasicSTTExample \
 		--output-directory output/BasicSTTExample \
-		BasicExample/BasicSTTExample.spl
+		BasicSTTExample.spl
 	@echo "✅ BasicSTTExample build attempted"
 
 # Clean build artifacts

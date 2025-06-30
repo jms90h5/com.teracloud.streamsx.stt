@@ -1,29 +1,72 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <toolkitModel xmlns="http://www.ibm.com/xmlns/prod/streams/spl/toolkit" productVersion="7.2.0.1" xmlns:common="http://www.ibm.com/xmlns/prod/streams/spl/common" xmlns:ti="http://www.ibm.com/xmlns/prod/streams/spl/toolkitInfo" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <toolkit name="com.teracloud.streamsx.stt" requiredProductVersion="7.2.0" version="1.0.0">
-    <description>
-This toolkit provides integration with multiple speech recognition frameworks including:
-- NVIDIA NeMo cache-aware streaming models
-- ONNX-based models (Whisper, Zipformer, etc.)
-- WeNet speech recognition framework
-
-It enables real-time streaming speech-to-text capabilities for TeraCloud Streams applications
-with support for multiple model types and configurations.
-    </description>
+  <toolkit name="com.teracloud.streamsx.stt" requiredProductVersion="7.2.0.0" version="1.0.0">
+    <description>TeraCloud Streams Speech-to-Text Toolkit</description>
     <uriTable>
-      <uri index="4" value="com.teracloud.streamsx.stt/OnnxSTT"/>
-      <uri index="3" value="com.teracloud.streamsx.stt/NeMoSTT"/>
-      <uri index="2" value="com.teracloud.streamsx.stt/FileAudioSource.spl"/>
-      <uri index="1" value="OnnxSTT_Demo.spl"/>
+      <uri index="6" value="com.teracloud.streamsx.stt/OnnxSTT"/>
+      <uri index="5" value="com.teracloud.streamsx.stt/NeMoSTT"/>
+      <uri index="4" value="com.teracloud.streamsx.stt/AudioChannelSplitter"/>
+      <uri index="3" value="com.teracloud.streamsx.stt/StereoFileAudioSource.spl"/>
+      <uri index="2" value="com.teracloud.streamsx.stt/Types.spl"/>
+      <uri index="1" value="com.teracloud.streamsx.stt/FileAudioSource.spl"/>
     </uriTable>
-    <namespace name="">
-      <compositeOp column="11" line="12" name="NeMoRealtime" potentialMain="true" uriIndex="1">
-        <parameter defaultValue="&quot;../../models/nemo_fastconformer_streaming/fastconformer_streaming.onnx&quot;" metaType="Expression" name="nemoModel" optional="true" type="&lt;rstring>"/>
-        <parameter defaultValue="true" metaType="Expression" name="enableVAD" optional="true" type="&lt;boolean>"/>
-      </compositeOp>
-    </namespace>
     <namespace name="com.teracloud.streamsx.stt">
-      <primitiveOp language="Cpp" modelUriIndex="3" name="NeMoSTT" public="true">
+      <primitiveOp language="Cpp" modelUriIndex="4" name="AudioChannelSplitter" public="true">
+        <description>
+The AudioChannelSplitter operator splits stereo audio input into separate left and right channel streams.
+It supports various stereo formats including interleaved PCM, non-interleaved PCM, and G.711 telephony codecs.
+
+This operator is designed for processing 2-channel audio in telephony and call center applications,
+where the left channel typically contains the caller audio and the right channel contains the agent audio.
+
+The operator can optionally resample audio from 8kHz to 16kHz for compatibility with speech recognition
+models that require higher sample rates.
+
+**Input Port**: Expects a stream containing stereo audio data in blob format
+**Output Ports**: 
+- Port 0: Left channel audio stream
+- Port 1: Right channel audio stream
+      </description>
+        <customLiterals name="StereoFormat">
+          <value name="interleaved"/>
+          <value name="nonInterleaved"/>
+        </customLiterals>
+        <customLiterals name="AudioEncoding">
+          <value name="pcm16"/>
+          <value name="pcm8"/>
+          <value name="ulaw"/>
+          <value name="alaw"/>
+        </customLiterals>
+        <parameter cardinality="1" expressionMode="CustomLiteral" name="stereoFormat" optional="true" type="StereoFormat">
+          <description>Format of the input stereo audio (default: interleaved)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="CustomLiteral" name="encoding" optional="true" type="AudioEncoding">
+          <description>Audio encoding type (default: pcm16)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="leftChannelRole" optional="true" type="rstring">
+          <description>Semantic role for left channel (default: "caller")</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="rightChannelRole" optional="true" type="rstring">
+          <description>Semantic role for right channel (default: "agent")</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="sampleRate" optional="true" type="int32">
+          <description>Input audio sample rate in Hz (default: 8000)</description>
+        </parameter>
+        <parameter cardinality="1" expressionMode="AttributeFree" name="targetSampleRate" optional="true" type="int32">
+          <description>Target sample rate for resampling, 0 = no resampling (default: 0)</description>
+        </parameter>
+        <inputPort maxNumPorts="1" minNumPorts="1" optional="false" windowPunctInputMode="Oblivious">
+          <description>Stereo audio input stream</description>
+          <windowPolicy>NonWindowed</windowPolicy>
+        </inputPort>
+        <outputPort expressionMode="Expression" maxNumPorts="1" minNumPorts="1" optional="false" windowPunctOutputMode="Preserving">
+          <description>Left channel output stream</description>
+        </outputPort>
+        <outputPort expressionMode="Expression" maxNumPorts="1" minNumPorts="1" optional="false" windowPunctOutputMode="Preserving">
+          <description>Right channel output stream</description>
+        </outputPort>
+      </primitiveOp>
+      <primitiveOp language="Cpp" modelUriIndex="5" name="NeMoSTT" public="true">
         <description>
 The NeMoSTT operator performs speech-to-text conversion using NVIDIA NeMo's 
 cache-aware streaming FastConformer model exported in CTC mode. This model is 
@@ -88,7 +131,7 @@ achieving 30x real-time performance with perfect transcription quality.
           <description>Transcription output port</description>
         </outputPort>
       </primitiveOp>
-      <primitiveOp language="Cpp" modelUriIndex="4" name="OnnxSTT" public="true">
+      <primitiveOp language="Cpp" modelUriIndex="6" name="OnnxSTT" public="true">
         <description>
         ONNX-based Speech-to-Text operator using ONNX Runtime.
         This operator provides real-time speech recognition using speech models
@@ -140,15 +183,50 @@ achieving 30x real-time performance with perfect transcription quality.
           <description>Transcription output stream</description>
         </outputPort>
       </primitiveOp>
-      <compositeOp column="18" line="27" name="FileAudioSource" potentialMain="false" public="true" uriIndex="2">
+      <compositeOp column="18" line="27" name="FileAudioSource" potentialMain="false" public="true" uriIndex="1">
         <parameter metaType="Expression" name="filename" optional="false" type="&lt;rstring>"/>
         <parameter defaultValue="3200u" metaType="Expression" name="blockSize" optional="true" type="&lt;uint32>"/>
         <parameter defaultValue="16000" metaType="Expression" name="sampleRate" optional="true" type="&lt;int32>"/>
         <parameter defaultValue="16" metaType="Expression" name="bitsPerSample" optional="true" type="&lt;int32>"/>
         <parameter defaultValue="1" metaType="Expression" name="channelCount" optional="true" type="&lt;int32>"/>
         <outputPort name="AudioStream" portIndex="0"/>
-        <type column="9" line="36" name="AudioChunkType" type="tuple&lt;blob audioChunk, uint64 audioTimestamp>" uriIndex="2"/>
+        <type column="9" line="36" name="AudioChunkType" type="tuple&lt;blob audioChunk, uint64 audioTimestamp>" uriIndex="1"/>
       </compositeOp>
+      <compositeOp column="18" line="26" name="StereoFileAudioSource" potentialMain="false" public="true" uriIndex="3">
+        <parameter metaType="Expression" name="filename" optional="false" type="&lt;rstring>"/>
+        <parameter defaultValue="16000u" metaType="Expression" name="blockSize" optional="true" type="&lt;uint32>"/>
+        <parameter defaultValue="&quot;caller&quot;" metaType="Expression" name="leftChannelRole" optional="true" type="&lt;rstring>"/>
+        <parameter defaultValue="&quot;agent&quot;" metaType="Expression" name="rightChannelRole" optional="true" type="&lt;rstring>"/>
+        <parameter defaultValue="pcm16" metaType="Expression" name="encoding" optional="true" type="&lt;AudioFormat>"/>
+        <parameter defaultValue="8000" metaType="Expression" name="sampleRate" optional="true" type="&lt;int32>"/>
+        <parameter defaultValue="0" metaType="Expression" name="targetSampleRate" optional="true" type="&lt;int32>"/>
+        <outputPort name="LeftChannel" portIndex="0" type="stream&lt;ChannelAudioStream>"/>
+        <outputPort name="RightChannel" portIndex="1" type="stream&lt;ChannelAudioStream>"/>
+      </compositeOp>
+      <type column="6" line="11" name="ChannelMetadata" static="true" type="tuple&lt;int32 channelNumber, rstring channelRole, rstring phoneNumber, rstring speakerId, map&lt;rstring, rstring> additionalMetadata>" uriIndex="2"/>
+      <type column="6" line="23" name="StereoAudioChunk" static="true" type="tuple&lt;blob leftChannelData, blob rightChannelData, uint64 audioTimestamp, int32 sampleRate, int32 bitsPerSample, rstring encoding>" uriIndex="2"/>
+      <type column="6" line="36" name="ChannelAudioStream" static="true" type="tuple&lt;blob audioData, uint64 audioTimestamp, ChannelMetadata channelInfo, int32 sampleRate, int32 bitsPerSample>" uriIndex="2"/>
+      <type column="6" line="48" name="ChannelTranscription" static="true" type="tuple&lt;rstring text, float64 confidence, boolean isFinal, ChannelMetadata channelInfo, uint64 startTime, uint64 endTime>" uriIndex="2"/>
+      <type column="6" line="61" name="CallMetadata" static="true" type="tuple&lt;rstring callId, rstring callerNumber, rstring calledNumber, timestamp callStartTime, timestamp callEndTime, rstring callDirection, map&lt;rstring, rstring> sipHeaders>" uriIndex="2"/>
+      <type column="6" line="74" name="AudioFormat" static="true" type="enum { pcm16, pcm8, ulaw, alaw, opus, g729 }" uriIndex="2"/>
+      <type column="6" line="79" name="ChannelRole" static="true" type="enum { caller, agent, left, right, customer, representative, unknown }" uriIndex="2"/>
+      <enumLiterals column="27" line="74" typeName="AudioFormat" uriIndex="2">
+        <enum>pcm16</enum>
+        <enum>pcm8</enum>
+        <enum>ulaw</enum>
+        <enum>alaw</enum>
+        <enum>opus</enum>
+        <enum>g729</enum>
+      </enumLiterals>
+      <enumLiterals column="27" line="79" typeName="ChannelRole" uriIndex="2">
+        <enum>caller</enum>
+        <enum>agent</enum>
+        <enum>left</enum>
+        <enum>right</enum>
+        <enum>customer</enum>
+        <enum>representative</enum>
+        <enum>unknown</enum>
+      </enumLiterals>
     </namespace>
     <sabFiles>
       <ti:include path="toolkit.xml" root="toolkitDir"/>

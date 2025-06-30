@@ -153,8 +153,25 @@ g++ -std=c++14 -O2 -I../impl/include -I../lib/onnxruntime/include \
     -Wl,-rpath,'$ORIGIN/../impl/lib' -Wl,-rpath,'$ORIGIN/../lib/onnxruntime/lib' \
     -o test_nemo_ctc_simple
 
-# Run
+# Run (outputs empty string for silence)
 ./test_nemo_ctc_simple
+```
+
+#### Audio Transcription Test (RECOMMENDED)
+```bash
+cd test
+g++ -std=c++14 -O2 -I../impl/include -I../lib/onnxruntime/include \
+    test_with_audio.cpp ../impl/lib/libs2t_impl.so \
+    -L../lib/onnxruntime/lib -lonnxruntime -ldl \
+    -Wl,-rpath,'$ORIGIN/../impl/lib' -Wl,-rpath,'$ORIGIN/../lib/onnxruntime/lib' \
+    -o test_with_audio
+
+# Run with librispeech sample
+./test_with_audio
+# Expected output: "it was the first great"
+
+# Run with custom audio
+./test_with_audio /path/to/your/audio.wav
 ```
 
 #### Comprehensive Fixed Test
@@ -169,6 +186,34 @@ g++ -std=c++14 -O2 -I../impl/include -I../lib/onnxruntime/include \
 # Run with options
 ./test_real_nemo_fixed --help
 ./test_real_nemo_fixed --verbose
+```
+
+### Quick Build All Tests
+```bash
+# Create a Makefile for convenience
+cat > Makefile << 'EOF'
+CXX = g++
+CXXFLAGS = -std=c++14 -O2 -I../impl/include -I../lib/onnxruntime/include
+LDFLAGS = -L../lib/onnxruntime/lib -lonnxruntime -ldl \
+          -Wl,-rpath,'$$ORIGIN/../impl/lib' -Wl,-rpath,'$$ORIGIN/../lib/onnxruntime/lib'
+LIBS = ../impl/lib/libs2t_impl.so
+
+all: test_nemo_ctc_simple test_with_audio
+
+test_nemo_ctc_simple: test_nemo_ctc_simple.cpp
+	$(CXX) $(CXXFLAGS) $< $(LIBS) $(LDFLAGS) -o $@
+
+test_with_audio: test_with_audio.cpp
+	$(CXX) $(CXXFLAGS) $< $(LIBS) $(LDFLAGS) -o $@
+
+clean:
+	rm -f test_nemo_ctc_simple test_with_audio
+
+.PHONY: all clean
+EOF
+
+# Build all tests
+make
 ```
 
 ### Library Path Requirements

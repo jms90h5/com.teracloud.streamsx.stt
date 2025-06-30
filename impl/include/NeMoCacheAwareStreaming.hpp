@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 #include <memory>
-#include <onnxruntime_cxx_api.h>
+#include "onnx_wrapper.hpp"
 #include "ModelInterface.hpp"
 #include "FeatureExtractor.hpp"
 

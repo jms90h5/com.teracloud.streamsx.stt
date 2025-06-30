@@ -4,7 +4,7 @@
 #include <string>
 #include <sstream>
 #include <algorithm>
-#include <onnxruntime_cxx_api.h>
+#include "onnx_wrapper.hpp"
 #include <cmath>
 
 struct AudioData {

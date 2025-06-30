@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<toolkitModel xmlns="http://www.ibm.com/xmlns/prod/streams/spl/toolkit" productVersion="7.2.0.1" xmlns:common="http://www.ibm.com/xmlns/prod/streams/spl/common" xmlns:ti="http://www.ibm.com/xmlns/prod/streams/spl/toolkitInfo" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <toolkit name="samples" requiredProductVersion="4.0" version="1.0.0">
+    <description>Toolkit Description</description>
+    <uriTable>
+      <uri index="6" value="SimpleTest.spl"/>
+      <uri index="5" value="TwoChannelBasicTest.spl"/>
+      <uri index="4" value="SimpleTestRealtime.spl"/>
+      <uri index="7" value="NeMoRealtimeDemo.spl"/>
+      <uri index="2" value="BasicSTTExample.spl"/>
+      <uri index="3" value="WorkingNeMoRealtime.spl"/>
+      <uri index="1" value="NeMoCTCSample.spl"/>
+    </uriTable>
+    <namespace name="">
+      <compositeOp column="11" line="9" name="NeMoCTCSample" potentialMain="true" uriIndex="1"/>
+      <compositeOp column="11" line="10" name="BasicSTTExample" potentialMain="true" uriIndex="2"/>
+      <compositeOp column="11" line="8" name="WorkingNeMoRealtime" potentialMain="true" uriIndex="3">
+        <parameter defaultValue="&quot;../models/fastconformer_ctc_export/model.onnx&quot;" metaType="Expression" name="nemoModel" optional="true" type="&lt;rstring>"/>
+      </compositeOp>
+      <compositeOp column="11" line="23" name="SimpleTestRealtime" potentialMain="true" uriIndex="4">
+        <parameter defaultValue="(boolean)getSubmissionTimeValue(&quot;realtimePlayback&quot;, &quot;false&quot;)" metaType="Expression" name="realtimePlayback" optional="true" type="&lt;boolean>"/>
+        <parameter defaultValue="(int32)getSubmissionTimeValue(&quot;chunkSizeMs&quot;, &quot;1024&quot;)" metaType="Expression" name="chunkSizeMs" optional="true" type="&lt;int32>"/>
+      </compositeOp>
+      <compositeOp column="11" line="7" name="TwoChannelBasicTest" potentialMain="true" uriIndex="5">
+        <parameter defaultValue="getSubmissionTimeValue(&quot;audioFile&quot;, &quot;../OneDrive_2_6-30-2025/RTP-Audio-narrowband-2channel-G711.wav&quot;)" metaType="Expression" name="audioFile" optional="true" type="&lt;rstring>"/>
+      </compositeOp>
+      <compositeOp column="11" line="7" name="SimpleTest" potentialMain="true" uriIndex="6"/>
+      <compositeOp column="11" line="24" name="NeMoRealtimeDemo" potentialMain="true" uriIndex="7">
+        <parameter defaultValue="(boolean)getSubmissionTimeValue(&quot;realtimePlayback&quot;, &quot;false&quot;)" metaType="Expression" name="realtimePlayback" optional="true" type="&lt;boolean>"/>
+        <parameter defaultValue="(int32)getSubmissionTimeValue(&quot;chunkSizeMs&quot;, &quot;512&quot;)" metaType="Expression" name="chunkSizeMs" optional="true" type="&lt;int32>"/>
+        <type column="9" line="32" name="TranscriptionWithMetrics" type="tuple&lt;rstring transcription, float64 processingTimeMs, float64 audioChunkMs, float64 speedupFactor, int32 chunkNumber, float64 elapsedTimeSec>" uriIndex="7"/>
+      </compositeOp>
+    </namespace>
+    <sabFiles>
+      <ti:include path="toolkit.xml" root="toolkitDir"/>
+      <ti:include path="impl/java/lib/**" root="toolkitDir"/>
+      <ti:include path="impl/java/bin/**" root="toolkitDir"/>
+      <ti:include path="impl/bin/**" root="toolkitDir"/>
+      <ti:include path="impl/lib/**" root="toolkitDir"/>
+      <ti:include path="impl/nl/*.dat" root="toolkitDir"/>
+      <ti:include path="etc/**" root="toolkitDir"/>
+      <ti:include path="lib/**" root="toolkitDir"/>
+      <ti:include path="nl/**" root="toolkitDir"/>
+      <ti:include path="opt/**" root="toolkitDir"/>
+    </sabFiles>
+  </toolkit>
+</toolkitModel>

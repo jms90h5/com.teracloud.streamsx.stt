@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onnx_isolated.hpp"
+#include "onnx_wrapper.hpp"
 #include "ImprovedFbank.hpp"
 #include <vector>
 #include <string>
@@ -24,10 +24,10 @@ public:
     
 private:
     // ONNX Runtime components
-    std::unique_ptr<OnnxIsolated::Env> env_;
-    std::unique_ptr<OnnxIsolated::Session> session_;
-    std::unique_ptr<OnnxIsolated::SessionOptions> session_options_;
-    std::unique_ptr<OnnxIsolated::MemoryInfo> memory_info_;
+    std::unique_ptr<Ort::Env> env_;
+    std::unique_ptr<Ort::Session> session_;
+    std::unique_ptr<Ort::SessionOptions> session_options_;
+    std::unique_ptr<Ort::MemoryInfo> memory_info_;
     
     // Model metadata
     std::vector<std::string> input_names_;

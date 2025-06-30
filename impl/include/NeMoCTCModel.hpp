@@ -1,7 +1,7 @@
 #ifndef NEMO_CTC_MODEL_HPP
 #define NEMO_CTC_MODEL_HPP
 
-#include <onnxruntime_cxx_api.h>
+#include "onnx_wrapper.hpp"
 #include <memory>
 #include <string>
 #include <vector>

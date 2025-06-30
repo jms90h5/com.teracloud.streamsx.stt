@@ -21,7 +21,7 @@ CXX := g++
 CXXFLAGS := -O3 -DNDEBUG
 
 # Source files - ONNX implementation with VAD, feature extraction, cache management, pipeline, and NeMo models
-SOURCES = src/OnnxSTTImpl.cpp src/OnnxSTTInterface.cpp src/ZipformerRNNT.cpp src/SileroVAD.cpp src/KaldifeatExtractor.cpp src/CacheManager.cpp src/STTPipeline.cpp src/NeMoCacheAwareConformer.cpp src/NeMoCacheAwareStreaming.cpp src/ModelFactory.cpp src/ImprovedFbank.cpp src/ImprovedFbankAdapter.cpp src/NeMoCTCModel.cpp
+SOURCES = src/OnnxSTTImpl.cpp src/OnnxSTTInterface.cpp src/ZipformerRNNT.cpp src/SileroVAD.cpp src/KaldifeatExtractor.cpp src/CacheManager.cpp src/STTPipeline.cpp src/NeMoCacheAwareConformer.cpp src/NeMoCacheAwareStreaming.cpp src/ModelFactory.cpp src/ImprovedFbank.cpp src/ImprovedFbankAdapter.cpp src/NeMoCTCModel.cpp src/StereoAudioSplitter.cpp
 # Additional source in include directory
 INCLUDE_SOURCES = include/NeMoCTCImpl.cpp
 
