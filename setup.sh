@@ -80,7 +80,10 @@ else
     cd impl
     make clean
     make
-    cd ..
+    # Create symlink for SPL operators
+    cd lib
+    ln -sf libs2t_impl.so libnemo_ctc_impl.so
+    cd ../..
     echo "✓ C++ implementation built successfully"
 fi
 echo ""
@@ -147,7 +150,11 @@ echo "   # Build and test samples"
 echo "   stt-samples"
 echo "   cd samples && make BasicNeMoDemo"
 echo ""
+echo "⚠️  IMPORTANT: Python venv may interfere with SPL compilation"
+echo "   If you get 'Lorem' file errors, see QUICK_FIXES.md"
+echo ""
 echo "📖 Documentation: README.md, doc/"
-echo "🔧 Troubleshooting: ./test/verify_nemo_setup.sh"
+echo "🔧 Troubleshooting: doc/KNOWN_ISSUES.md"
+echo "⚡ Quick fixes: QUICK_FIXES.md"
 echo ""
 echo "Happy coding! 🎉"

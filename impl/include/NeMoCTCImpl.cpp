@@ -17,20 +17,20 @@ NeMoCTCImpl::~NeMoCTCImpl() {
 bool NeMoCTCImpl::initialize(const std::string& model_path, const std::string& tokens_path) {
     try {
         // Initialize ONNX Runtime
-        env_ = std::make_unique<OnnxIsolated::Env>(ORT_LOGGING_LEVEL_WARNING, "NeMoCTC");
-        session_options_ = std::make_unique<OnnxIsolated::SessionOptions>();
+        env_ = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "NeMoCTC");
+        session_options_ = std::make_unique<Ort::SessionOptions>();
         session_options_->SetIntraOpNumThreads(1);
         session_options_->SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
         
-        memory_info_ = std::make_unique<OnnxIsolated::MemoryInfo>(
-            OnnxIsolated::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault)
+        memory_info_ = std::make_unique<Ort::MemoryInfo>(
+            Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault)
         );
         
         // Load model
-        session_ = std::make_unique<OnnxIsolated::Session>(*env_, model_path.c_str(), *session_options_);
+        session_ = std::make_unique<Ort::Session>(*env_, model_path.c_str(), *session_options_);
         
         // Get model input/output info
-        OnnxIsolated::AllocatorWithDefaultOptions allocator;
+        Ort::AllocatorWithDefaultOptions allocator;
         
         // Input info
         size_t num_inputs = session_->GetInputCount();
@@ -203,26 +203,39 @@ std::string NeMoCTCImpl::transcribe(const std::vector<float>& audio_samples) {
         }
         
         // Prepare input tensors
-        // Model expects [batch, time, features] (mel_features is already in [time, features] format)
-        std::vector<int64_t> audio_shape = {1, n_frames, n_mels};  // [batch, time, features]
+        // Model expects [batch, features, time] not [batch, time, features]
+        // mel_features is currently in [time, features] format, need to transpose
+        std::vector<float> transposed_features(mel_features.size());
         
-        auto audio_tensor = OnnxIsolated::Value::CreateTensor<float>(
+        // Transpose from [time, features] to [features, time]
+        for (int t = 0; t < n_frames; t++) {
+            for (int f = 0; f < n_mels; f++) {
+                transposed_features[f * n_frames + t] = mel_features[t * n_mels + f];
+            }
+        }
+        
+        std::vector<int64_t> audio_shape = {1, n_mels, n_frames};  // [batch, features, time]
+        
+        std::cout << "Tensor shape for model: [" << audio_shape[0] << ", " 
+                  << audio_shape[1] << ", " << audio_shape[2] << "]" << std::endl;
+        
+        auto audio_tensor = Ort::Value::CreateTensor<float>(
             *memory_info_, 
-            mel_features.data(),  // Use mel_features directly (already [time, features])
-            mel_features.size(),
+            transposed_features.data(),
+            transposed_features.size(),
             audio_shape.data(), 
             audio_shape.size()
         );
         
         // Prepare input/output arrays
-        std::vector<OnnxIsolated::Value> input_tensors;
+        std::vector<Ort::Value> input_tensors;
         input_tensors.push_back(std::move(audio_tensor));
         
         // Only pass length tensor if model expects it (num_inputs > 1)
         if (input_names_.size() > 1) {
             std::vector<int64_t> length_shape = {1};
             std::vector<int64_t> length_data = {n_frames};
-            auto length_tensor = OnnxIsolated::Value::CreateTensor<int64_t>(
+            auto length_tensor = Ort::Value::CreateTensor<int64_t>(
                 *memory_info_,
                 length_data.data(),
                 length_data.size(),
@@ -244,7 +257,7 @@ std::string NeMoCTCImpl::transcribe(const std::vector<float>& audio_samples) {
         
         // Run inference
         auto output_tensors = session_->Run(
-            OnnxIsolated::RunOptions{nullptr},
+            Ort::RunOptions{nullptr},
             input_names_cstr.data(),
             input_tensors.data(),
             input_tensors.size(),

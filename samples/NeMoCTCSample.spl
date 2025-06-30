@@ -1,5 +1,3 @@
-namespace com.teracloud.streamsx.stt.sample;
-
 use com.teracloud.streamsx.stt::*;
 
 /**
@@ -13,7 +11,7 @@ composite NeMoCTCSample {
         // Read test audio file
         stream<blob audioData> AudioFile = FileSource() {
             param
-                file: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/opt/test_data/audio/librispeech_3sec.wav";
+                file: "audio/librispeech_3sec.wav";
                 format: block;
                 blockSize: 48000u;  // 3 seconds at 16kHz
         }
@@ -36,14 +34,11 @@ composite NeMoCTCSample {
                 }
         }
         
-        // Use OnnxSTT operator with NeMo CTC configuration
-        stream<rstring text, boolean isFinal, float64 confidence> TranscriptionStream = OnnxSTT(AudioStream) {
+        // Use NeMoSTT operator with FastConformer CTC model
+        stream<rstring transcription> TranscriptionStream = NeMoSTT(AudioStream) {
             param
-                encoderModel: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/models/fastconformer_nemo_export/ctc_model.onnx";
-                vocabFile: "/homes/jsharpe/teracloud/toolkits/com.teracloud.streamsx.stt/models/fastconformer_nemo_export/tokens.txt";
-                cmvnFile: "none";  // No CMVN for NeMo CTC
-                modelType: "NEMO_CTC";  // Use new model type
-                blankId: 1024;  // NeMo CTC blank token
+                modelPath: "../opt/models/fastconformer_ctc_export/model.onnx";
+                tokensPath: "../opt/models/fastconformer_ctc_export/tokens.txt";
                 sampleRate: 16000;
                 provider: "CPU";
                 numThreads: 4;
@@ -54,9 +49,7 @@ composite NeMoCTCSample {
             logic
                 onTuple TranscriptionStream: {
                     printStringLn("=== NeMo CTC Transcription ===");
-                    printStringLn("Text: " + text);
-                    printStringLn("Is Final: " + (rstring)isFinal);
-                    printStringLn("Confidence: " + (rstring)confidence);
+                    printStringLn("Text: " + transcription);
                     printStringLn("Expected: 'it was the first great'");
                     printStringLn("=============================");
                 }

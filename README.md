@@ -8,9 +8,10 @@ A production-ready speech-to-text toolkit for Teracloud Streams that provides re
 
 **Working Components**:
 - ✅ **Python model export** - `export_model_ctc_patched.py` handles NeMo dependency conflicts
-- ✅ **C++ implementation** - Builds successfully with new directory structure
+- ✅ **C++ implementation** - Builds successfully with tensor transpose fix
 - ✅ **ONNX Runtime integration** - Inference pipeline functional
 - ✅ **Automatic setup** - New `setup.sh` script for easy onboarding
+- ✅ **SPL Applications** - All samples (SimpleTest, BasicSTTExample, NeMoCTCSample) working correctly
 
 **Known Issues**: See `doc/CRITICAL_FINDINGS_2025_06_23.md` for technical details.
 
@@ -39,7 +40,9 @@ git clone <repository-url>
 cd com.teracloud.streamsx.stt
 
 # Run automatic setup - handles everything!
-./setup.sh
+./setup_external_venv.sh  # Recommended: Avoids SPL compiler issues
+# OR
+./setup.sh               # Original: May have SPL compilation issues
 
 # Activate development environment  
 source .envrc
@@ -60,15 +63,47 @@ source .envrc
 
 ### 2. Export a Model (Required for Transcription)
 
-```bash
-# Install NeMo toolkit (one-time, large download ~2-3GB)
-pip install -r doc/requirements_nemo.txt
+The toolkit requires the NVIDIA NeMo FastConformer model for speech recognition. This is a one-time setup.
 
-# Export the working model (uses the proven script that handles dependency conflicts)
+**IMPORTANT**: Always activate the Python environment first:
+```bash
+source ./activate_python.sh
+```
+
+#### Option A: Quick Setup (Recommended)
+```bash
+# Install core dependencies first (prevents timeouts)
+pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+pip install onnx==1.18.0 onnxruntime==1.22.0 librosa soundfile scipy numpy
+
+# Install NeMo ASR component
+pip install nemo_toolkit[asr]==2.3.1
+
+# Export the model (downloads ~460MB, exports to ~438MB ONNX)
 python impl/bin/export_model_ctc_patched.py
 
-# This creates: opt/models/fastconformer_ctc_export/model.onnx (~44MB)
+# Generate vocabulary file if needed
+python fix_tokens.py  # Only if tokens.txt is empty/missing
 ```
+
+#### Option B: Full Installation
+```bash
+# Install all NeMo components (larger download ~2-3GB)
+pip install -r requirements_nemo.txt
+
+# Export the model
+python impl/bin/export_model_ctc_patched.py
+```
+
+**Expected Output**:
+- Model file: `opt/models/fastconformer_ctc_export/model.onnx` (~438MB)
+- Vocabulary: `opt/models/fastconformer_ctc_export/tokens.txt` (1024 tokens)
+
+**Model Details**:
+- Model: `nvidia/stt_en_fastconformer_hybrid_large_streaming_multi`
+- Architecture: FastConformer-Hybrid CTC
+- Parameters: 114M
+- Training: 10,000+ hours of English speech
 
 ### 3. Test Everything Works
 
@@ -76,9 +111,25 @@ python impl/bin/export_model_ctc_patched.py
 # Verify setup
 stt-test
 
-# Build and test samples
-cd samples && make BasicNeMoDemo
+# Build and test SPL samples
+cd samples
+
+# Build SimpleTest application
+sc -M SimpleTest -t ../
+
+# Run the application (outputs: "it was the first great")
+./output/bin/standalone -d .
+
+# Or build and run other samples
+sc -M BasicSTTExample -t ../ && ./output/bin/standalone -d .
+sc -M NeMoCTCSample -t ../ && ./output/bin/standalone -d .
 ```
+
+**Important Notes for SPL Applications**:
+1. The library symlink `libnemo_ctc_impl.so -> libs2t_impl.so` is created automatically by setup
+2. Use `-d .` flag when running standalone to specify data directory
+3. Audio test files are included in `samples/audio/`
+4. All samples produce the transcription: "it was the first great"
 
 ### Prerequisites
 
@@ -128,10 +179,57 @@ source ~/teracloud/streams/7.2.0.0/bin/streamsprofile.sh
 ./setup.sh
 ```
 
+**NeMo Installation Issues**:
+- **Timeout during pip install**: Use Option A (Quick Setup) which installs dependencies separately
+- **"No module named nemo"**: Ensure you activated the Python environment first
+- **GPU/CUDA warnings**: Normal for CPU-only setup, can be ignored
+- **Tokens file empty/missing**: Run the fix_tokens.py script as shown above
+
+**Model Export Issues**:
+- **"huggingface_hub" errors**: The export script handles these automatically
+- **Training/validation warnings**: Normal during export, can be ignored
+- **Download fails**: Check internet connection, the model is ~460MB
+
 **C++ Compilation Fails with `NO_EXCEPTION` error**:
-*   **Symptom**: The build fails with a compiler error similar to `error: expected unqualified-id before 'noexcept'` pointing to the ONNX Runtime headers.
-*   **Cause**: ONNX Runtime's headers define a macro `NO_EXCEPTION` which conflicts with identifiers used in the Teracloud Streams SDK headers.
-*   **Solution**: The toolkit now uses an isolation header `impl/include/onnx_wrapper.hpp`. This file includes the necessary ONNX headers and then immediately undefines the conflicting macro. If you are adding new C++ files that require the ONNX API, include `onnx_wrapper.hpp` instead of including `<onnxruntime_cxx_api.h>` directly.
+- **Symptom**: Build fails with `error: expected unqualified-id before 'noexcept'`
+- **Cause**: ONNX Runtime headers conflict with Streams SDK
+- **Solution**: Already fixed - use `#include "onnx_wrapper.hpp"` instead of direct ONNX includes
+
+**SPL Compilation Issues**:
+- **Namespace errors**: Ensure SPL files are in directories matching their namespace
+- **Missing operators**: Run `spl-make-toolkit -i .` in the toolkit root
+- **Python venv in bundle**: See critical issue below
+
+### ⚠️ CRITICAL: Python Virtual Environment Blocks SPL Compilation
+
+**Issue**: SPL compilation fails with:
+```
+make: *** No rule to make target '.../impl/venv/lib/python3.11/site-packages/setuptools/_vendor/jaraco/text/Lorem'
+```
+
+**Workaround**: Temporarily move the venv directory before compiling SPL:
+```bash
+# Before compiling SPL:
+mv impl/venv /tmp/stt_venv_backup
+
+# Compile your SPL application
+cd samples && make
+
+# Restore venv after compilation:
+mv /tmp/stt_venv_backup impl/venv
+```
+
+**Note**: This is a known SPL compiler issue with Python setuptools test files.
+
+### 🔧 Model Transcription Issues
+
+**Empty or Wrong Transcriptions**:
+1. **Check model input dimensions** - Model expects `[batch, features=80, time]`
+2. **Verify tokens.txt** - Should have exactly 1024 lines
+3. **Test with C++ first** - Use `test/test_with_audio` to verify model works
+4. **Check audio format** - Must be 16kHz, mono, 16-bit
+
+**For all issues, see `doc/KNOWN_ISSUES.md` for detailed solutions.**
 
 
 

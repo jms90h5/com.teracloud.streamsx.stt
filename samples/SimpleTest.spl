@@ -9,7 +9,7 @@ composite SimpleTest {
         // Read audio from librispeech test file
         stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
             param
-                filename: "../test_data/audio/librispeech-1995-1837-0001.wav";
+                filename: "audio/librispeech_3sec.wav";
                 blockSize: 16384u;
                 sampleRate: 16000;
                 bitsPerSample: 16;
@@ -17,17 +17,19 @@ composite SimpleTest {
         }
         
         // Perform speech recognition using NeMo FastConformer
-        stream<rstring text> Transcription = NeMoSTT(AudioStream) {
+        stream<rstring transcription> Transcription = NeMoSTT(AudioStream) {
             param
-                modelPath: "../models/fastconformer_ctc_export/model.onnx";
-                tokensPath: "../models/fastconformer_ctc_export/tokens.txt";
+                modelPath: getEnvironmentVariable("STREAMS_STT_MODEL_PATH", 
+                    "/home/streamsadmin/workspace/teracloud/toolkits/com.teracloud.streamsx.stt/opt/models/fastconformer_ctc_export/model.onnx");
+                tokensPath: getEnvironmentVariable("STREAMS_STT_TOKENS_PATH",
+                    "/home/streamsadmin/workspace/teracloud/toolkits/com.teracloud.streamsx.stt/opt/models/fastconformer_ctc_export/tokens.txt");
         }
         
         // Display results
         () as Display = Custom(Transcription) {
             logic
                 onTuple Transcription: {
-                    printStringLn("SimpleTest Transcription: " + text);
+                    printStringLn("SimpleTest Transcription: " + transcription);
                 }
         }
 }
