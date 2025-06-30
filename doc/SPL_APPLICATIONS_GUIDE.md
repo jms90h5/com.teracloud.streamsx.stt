@@ -15,10 +15,27 @@ All samples are located in the `samples/` directory:
 1. **SimpleTest** - Basic test of NeMo STT functionality
 2. **BasicSTTExample** - Example with file output
 3. **NeMoCTCSample** - Demonstrates CTC model processing
+4. **SimpleTestRealtime** - Basic test with optional real-time throttling
+5. **NeMoRealtimeDemo** - Advanced demo with performance metrics and real-time processing
 
 All samples process the same test audio (`audio/librispeech_3sec.wav`) and should produce:
 ```
 "it was the first great"
+```
+
+### Real-time Processing
+
+The real-time samples support throttled processing to simulate 1x playback speed:
+
+```bash
+# Full speed processing (default)
+sc -M SimpleTestRealtime -t ../ && ./output/bin/standalone -d .
+
+# Real-time (1x speed) processing
+sc -M SimpleTestRealtime -t ../ && ./output/bin/standalone -d . realtimePlayback=true
+
+# Real-time with custom chunk size
+sc -M SimpleTestRealtime -t ../ && ./output/bin/standalone -d . realtimePlayback=true chunkSizeMs=512
 ```
 
 ## Building SPL Applications

@@ -1,0 +1,82 @@
+use com.teracloud.streamsx.stt::*;
+use spl.utility::Throttle;
+
+/**
+ * Simple NeMo FastConformer Speech-to-Text Test with Real-time Option
+ * 
+ * Expected output: "it was the first great"
+ * 
+ * Submission parameters:
+ * - realtimePlayback: Process audio at 1x speed (default: false)
+ * - chunkSizeMs: Chunk size in milliseconds (default: 1024ms)
+ * 
+ * Example:
+ *   # Full speed processing
+ *   sc -M SimpleTestRealtime -t ../ && ./output/bin/standalone -d .
+ *   
+ *   # Real-time (1x) processing 
+ *   sc -M SimpleTestRealtime -t ../ && ./output/bin/standalone -d . realtimePlayback=true
+ *   
+ *   # Custom chunk size
+ *   sc -M SimpleTestRealtime -t ../ && ./output/bin/standalone -d . realtimePlayback=true chunkSizeMs=512
+ */
+composite SimpleTestRealtime {
+    param
+        expression<boolean> $realtimePlayback: 
+            (boolean)getSubmissionTimeValue("realtimePlayback", "false");
+        expression<int32> $chunkSizeMs:
+            (int32)getSubmissionTimeValue("chunkSizeMs", "1024");
+            
+    graph
+        // Read audio from librispeech test file
+        // Calculate block size: chunkSizeMs * 16000 samples/sec * 2 bytes/sample / 1000 ms/sec
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "audio/librispeech_3sec.wav";
+                blockSize: (uint32)($chunkSizeMs * 16000 * 2 / 1000);
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // Optional throttling for real-time processing
+        stream<blob audioChunk, uint64 audioTimestamp> ProcessedAudio = Throttle(AudioStream) {
+            param
+                // For real-time: rate = 1000ms / chunkSizeMs = chunks per second
+                // For full speed: rate = 1000000 (essentially unlimited)
+                rate: $realtimePlayback ? (1000.0 / (float64)$chunkSizeMs) : 1000000.0;
+                precise: true;  // Use precise timing for accurate real-time simulation
+        }
+        
+        // Perform speech recognition using NeMo FastConformer
+        stream<rstring transcription> Transcription = NeMoSTT(ProcessedAudio) {
+            param
+                modelPath: getEnvironmentVariable("STREAMS_STT_MODEL_PATH", 
+                    "/home/streamsadmin/workspace/teracloud/toolkits/com.teracloud.streamsx.stt/opt/models/fastconformer_ctc_export/model.onnx");
+                tokensPath: getEnvironmentVariable("STREAMS_STT_TOKENS_PATH",
+                    "/home/streamsadmin/workspace/teracloud/toolkits/com.teracloud.streamsx.stt/opt/models/fastconformer_ctc_export/tokens.txt");
+        }
+        
+        // Display results with timing information
+        () as Display = Custom(Transcription) {
+            logic
+                state: {
+                    mutable timestamp startTime = getTimestamp();
+                    mutable int32 chunkCount = 0;
+                }
+                onTuple Transcription: {
+                    chunkCount++;
+                    timestamp currentTime = getTimestamp();
+                    float64 elapsedSec = diffAsSecs(currentTime, startTime);
+                    
+                    printStringLn("SimpleTestRealtime [chunk " + (rstring)chunkCount + 
+                                 " @ " + (rstring)elapsedSec + "s]: " + transcription);
+                    
+                    if ($realtimePlayback) {
+                        printStringLn("  (Real-time mode: " + (rstring)$chunkSizeMs + "ms chunks)");
+                    } else {
+                        printStringLn("  (Full speed mode)");
+                    }
+                }
+        }
+}
