@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<operatorModel xmlns="http://www.ibm.com/xmlns/prod/streams/spl/operator" 
+               xmlns:cmn="http://www.ibm.com/xmlns/prod/streams/spl/common">
+  <cppOperatorModel>
+    <context>
+      <description>
+The UnifiedSTT operator provides a unified interface for multiple speech-to-text backends including
+local NeMo models and cloud-based services like Watson STT. It supports both mono and stereo audio
+processing, with automatic channel handling for telephony applications.
+
+This operator is designed to be the primary interface for all STT operations, providing:
+- Runtime backend selection
+- Automatic fallback capabilities
+- Consistent output format across all backends
+- Support for 2-channel telephony audio
+- Streaming and batch processing modes
+
+**Supported Backends:**
+- **nemo**: Local NVIDIA NeMo models using ONNX Runtime
+- **watson**: IBM Watson Speech to Text cloud service
+- **google**: Google Cloud Speech-to-Text (future)
+- **azure**: Azure Cognitive Services Speech (future)
+
+**Input Port**: Expects a UnifiedAudioInput stream
+**Output Port**: Produces UnifiedTranscriptionOutput tuples
+      </description>
+      <customLiterals>
+        <enumeration>
+          <name>BackendType</name>
+          <value>nemo</value>
+          <value>watson</value>
+          <value>google</value>
+          <value>azure</value>
+          <value>custom</value>
+        </enumeration>
+      </customLiterals>
+      <libraryDependencies>
+        <library>
+          <cmn:description>Speech-to-text implementation library</cmn:description>
+          <cmn:managedLibrary>
+            <cmn:lib>s2t_impl</cmn:lib>
+            <cmn:libPath>../../impl/lib</cmn:libPath>
+            <cmn:includePath>../../impl/include</cmn:includePath>
+          </cmn:managedLibrary>
+        </library>
+      </libraryDependencies>
+      <providesSingleThreadedContext>Always</providesSingleThreadedContext>
+    </context>
+    <parameters>
+      <allowAny>false</allowAny>
+      <parameter>
+        <name>backend</name>
+        <description>STT backend to use (nemo, watson, google, azure)</description>
+        <optional>false</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>modelPath</name>
+        <description>Path to local model file (for nemo backend)</description>
+        <optional>true</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>vocabPath</name>
+        <description>Path to vocabulary file (for nemo backend)</description>
+        <optional>true</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>apiEndpoint</name>
+        <description>API endpoint URL (for cloud backends)</description>
+        <optional>true</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>apiKey</name>
+        <description>API key for authentication (for cloud backends)</description>
+        <optional>true</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>region</name>
+        <description>Cloud region (for cloud backends)</description>
+        <optional>true</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>languageCode</name>
+        <description>BCP-47 language code (default: en-US)</description>
+        <optional>true</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>enableWordTimings</name>
+        <description>Enable word-level timing information</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>boolean</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>enablePunctuation</name>
+        <description>Enable automatic punctuation</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>boolean</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>enableSpeakerLabels</name>
+        <description>Enable speaker diarization</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>boolean</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>maxAlternatives</name>
+        <description>Maximum number of alternative transcriptions</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>int32</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>backendConfig</name>
+        <description>Backend-specific configuration options</description>
+        <optional>true</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>map&lt;rstring,rstring&gt;</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>fallbackBackend</name>
+        <description>Fallback backend to use if primary fails</description>
+        <optional>true</optional>
+        <rewriteAllowed>true</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
+        <cardinality>1</cardinality>
+      </parameter>
+      <parameter>
+        <name>timeout</name>
+        <description>Timeout in seconds for cloud backends</description>
+        <optional>true</optional>
+        <rewriteAllowed>false</rewriteAllowed>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>float64</type>
+        <cardinality>1</cardinality>
+      </parameter>
+    </parameters>
+    <inputPorts>
+      <inputPortSet>
+        <description>Unified audio input stream</description>
+        <tupleMutationAllowed>false</tupleMutationAllowed>
+        <windowingMode>NonWindowed</windowingMode>
+        <windowPunctuationInputMode>Oblivious</windowPunctuationInputMode>
+        <cardinality>1</cardinality>
+        <optional>false</optional>
+      </inputPortSet>
+    </inputPorts>
+    <outputPorts>
+      <outputPortSet>
+        <description>Unified transcription output stream</description>
+        <expressionMode>Expression</expressionMode>
+        <autoAssignment>false</autoAssignment>
+        <completeAssignment>false</completeAssignment>
+        <rewriteAllowed>true</rewriteAllowed>
+        <windowPunctuationOutputMode>Preserving</windowPunctuationOutputMode>
+        <tupleMutationAllowed>true</tupleMutationAllowed>
+        <cardinality>1</cardinality>
+        <optional>false</optional>
+      </outputPortSet>
+    </outputPorts>
+  </cppOperatorModel>
+</operatorModel>

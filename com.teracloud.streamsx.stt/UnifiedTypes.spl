@@ -1,0 +1,128 @@
+namespace com.teracloud.streamsx.stt;
+
+/**
+ * Unified types for multi-backend STT support.
+ * These types extend and build upon the existing 2-channel audio types.
+ */
+
+/**
+ * Word timing information for detailed transcription results
+ */
+type WordTiming = tuple<
+    rstring word,
+    float64 startTime,    // Start time in seconds
+    float64 endTime,      // End time in seconds  
+    float64 confidence    // Word-level confidence [0.0-1.0]
+>;
+
+/**
+ * Speaker information for diarization support
+ */
+type SpeakerInfo = tuple<
+    int32 speakerId,      // Numeric speaker identifier
+    rstring speakerLabel, // Human-readable label (e.g., "Speaker 1")
+    float64 confidence    // Speaker identification confidence
+>;
+
+/**
+ * Unified audio input that extends our existing channel support
+ * Compatible with both mono and stereo audio streams
+ */
+type UnifiedAudioInput = tuple<
+    blob audioData,                    // Audio data (mono or interleaved stereo)
+    uint64 audioTimestamp,             // Timestamp in milliseconds
+    rstring encoding,                  // "pcm16", "pcm8", "ulaw", "alaw", "opus", "mp3"
+    int32 sampleRate,                  // Sample rate in Hz
+    int32 channels,                    // 1 for mono, 2 for stereo
+    int32 bitsPerSample,              // Bits per sample (8, 16, 24, 32)
+    rstring languageCode,             // BCP-47 language code (e.g., "en-US")
+    ChannelMetadata channelInfo,      // Channel identification (existing type)
+    map<rstring,rstring> metadata     // Extensible metadata
+>;
+
+/**
+ * Unified transcription output with channel and backend information
+ */
+type UnifiedTranscriptionOutput = tuple<
+    rstring text,                      // Transcribed text
+    float64 confidence,                // Overall confidence [0.0-1.0]
+    boolean isFinal,                   // Is this a final or interim result
+    list<WordTiming> wordTimings,      // Word-level timings (optional)
+    list<SpeakerInfo> speakers,        // Speaker labels (optional)
+    ChannelMetadata channelInfo,       // Which channel this came from
+    uint64 startTime,                  // Start time of transcribed segment
+    uint64 endTime,                    // End time of transcribed segment
+    rstring backend,                   // Backend that produced this ("nemo", "watson", etc.)
+    rstring languageCode,              // Detected or specified language
+    map<rstring,rstring> metadata,     // Backend-specific metadata
+    list<rstring> alternatives         // Alternative transcriptions
+>;
+
+/**
+ * Call metadata for telephony scenarios
+ */
+type CallMetadata = tuple<
+    rstring callId,                    // Unique call identifier
+    rstring sessionId,                 // Session identifier
+    rstring callerNumber,              // Caller phone number (may be masked)
+    rstring calledNumber,              // Called phone number
+    uint64 startTime,                  // Call start timestamp
+    uint64 endTime,                    // Call end timestamp (0 if ongoing)
+    rstring direction,                 // "inbound" or "outbound"
+    rstring callState,                 // "ringing", "connected", "ended", etc.
+    map<rstring,rstring> sipHeaders,   // SIP headers if available
+    map<rstring,rstring> customData    // Application-specific data
+>;
+
+/**
+ * Merged transcription for 2-channel calls
+ */
+type CallTranscription = tuple<
+    rstring callId,                    // Call identifier
+    rstring mergedText,                // Merged transcription with speaker labels
+    list<UnifiedTranscriptionOutput> utterances,  // Individual utterances
+    CallMetadata callInfo,             // Call metadata
+    float64 duration,                  // Total call duration in seconds
+    map<rstring,float64> speakerTime  // Speaking time per channel/speaker
+>;
+
+/**
+ * Backend capabilities descriptor
+ */
+type BackendCapabilities = tuple<
+    rstring backendName,               // Backend identifier
+    boolean supportsStreaming,         // Real-time streaming support
+    boolean supportsWordTimings,       // Word-level timing support
+    boolean supportsSpeakerLabels,     // Diarization support
+    boolean supportsCustomModels,      // Custom model support
+    list<rstring> supportedLanguages,  // List of BCP-47 language codes
+    list<rstring> supportedEncodings,  // Supported audio encodings
+    int32 minSampleRate,               // Minimum sample rate (0 = flexible)
+    int32 maxSampleRate,               // Maximum sample rate (0 = flexible)
+    int32 maxChannels,                 // Maximum number of channels
+    map<rstring,rstring> features      // Additional features
+>;
+
+/**
+ * STT backend configuration
+ */
+type BackendConfiguration = tuple<
+    rstring backend,                   // Backend identifier ("nemo", "watson", etc.)
+    rstring modelPath,                 // Path to local model (if applicable)
+    rstring apiEndpoint,               // API endpoint URL (if applicable)
+    rstring apiKey,                    // API key (if applicable)
+    rstring region,                    // Cloud region (if applicable)
+    map<rstring,rstring> options,      // Backend-specific options
+    map<rstring,rstring> credentials   // Additional credentials
+>;
+
+/**
+ * Audio codec configuration for telephony
+ */
+type CodecConfiguration = tuple<
+    rstring codec,                     // Codec name ("ulaw", "alaw", "opus", etc.)
+    int32 bitrate,                     // Bitrate in bps
+    int32 packetSize,                  // Packet size in ms
+    boolean vadEnabled,                // Voice Activity Detection
+    map<rstring,rstring> codecParams   // Codec-specific parameters
+>;
