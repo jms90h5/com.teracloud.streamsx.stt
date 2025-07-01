@@ -1,0 +1,233 @@
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * Demonstrates the UnifiedSTT operator with NeMo backend.
+ * This sample shows how to use the new unified interface
+ * that will eventually support multiple STT backends.
+ * 
+ * To run:
+ *   sc -M UnifiedSTTDemo -t ../
+ *   ./output/bin/standalone -d .
+ */
+composite UnifiedSTTDemo {
+    param
+        // Audio file to transcribe
+        expression<rstring> $audioFile: 
+            getSubmissionTimeValue("audioFile", 
+                "audio/call_1_audio_g711_alaw_8khz_m.wav");
+        
+        // STT backend to use
+        expression<rstring> $backend:
+            getSubmissionTimeValue("backend", "nemo");
+            
+        // Model path for NeMo
+        expression<rstring> $modelPath:
+            getSubmissionTimeValue("modelPath",
+                "../opt/models/fastconformer_ctc_export/model.onnx");
+                
+        // Vocabulary path for NeMo
+        expression<rstring> $vocabPath:
+            getSubmissionTimeValue("vocabPath",
+                "../opt/models/fastconformer_ctc_export/tokens.txt");
+    
+    graph
+        // Read audio file in chunks
+        stream<blob audioChunk> AudioStream = FileSource() {
+            param
+                file: $audioFile;
+                format: block;
+                blockSize: 8000u;  // 0.5 second chunks at 16kHz
+                initDelay: 0.0;
+        }
+        
+        // Convert to UnifiedAudioInput format
+        stream<UnifiedAudioInput> UnifiedAudio = Custom(AudioStream) {
+            logic
+                state: {
+                    mutable uint64 timestamp = 0ul;
+                    mutable int32 chunkCount = 0;
+                }
+                onTuple AudioStream: {
+                    UnifiedAudioInput unified = {};
+                    
+                    // Set audio data
+                    unified.audioData = audioChunk;
+                    unified.audioTimestamp = timestamp;
+                    unified.encoding = "pcm16";
+                    unified.sampleRate = 16000;
+                    unified.channels = 1;
+                    unified.bitsPerSample = 16;
+                    unified.languageCode = "en-US";
+                    
+                    // Set channel info (mono audio)
+                    unified.channelInfo.channelNumber = 0;
+                    unified.channelInfo.channelRole = "mono";
+                    
+                    // Add metadata
+                    insertM(unified.metadata, "chunkIndex", (rstring)chunkCount);
+                    insertM(unified.metadata, "source", $audioFile);
+                    
+                    submit(unified, UnifiedAudio);
+                    
+                    // Update state
+                    timestamp += 500ul;  // 500ms per chunk
+                    chunkCount++;
+                    
+                    if (chunkCount <= 3) {
+                        printStringLn("Submitted chunk " + (rstring)chunkCount + 
+                                     " with " + (rstring)size(audioChunk) + " bytes");
+                    }
+                }
+                onPunct AudioStream: {
+                    if (currentPunct() == Sys.FinalMarker) {
+                        printStringLn("Total chunks processed: " + (rstring)chunkCount);
+                    }
+                }
+        }
+        
+        // Transcribe using UnifiedSTT
+        stream<UnifiedTranscriptionOutput> Transcription = UnifiedSTT(UnifiedAudio) {
+            param
+                backend: $backend;
+                modelPath: $modelPath;
+                vocabPath: $vocabPath;
+                enablePunctuation: true;
+                languageCode: "en-US";
+                backendConfig: {
+                    "provider": "CPU",
+                    "numThreads": "4"
+                };
+        }
+        
+        // Display results
+        () as ResultDisplay = Custom(Transcription) {
+            logic
+                state: {
+                    mutable rstring fullTranscript = "";
+                    mutable int32 resultCount = 0;
+                    mutable float64 totalConfidence = 0.0;
+                }
+                onTuple Transcription: {
+                    resultCount++;
+                    
+                    // Accumulate transcript
+                    if (!text.empty()) {
+                        if (!fullTranscript.empty()) {
+                            fullTranscript += " ";
+                        }
+                        fullTranscript += text;
+                        totalConfidence += confidence;
+                        
+                        printStringLn("\n=== Transcription Result #" + (rstring)resultCount + " ===");
+                        printStringLn("Text: " + text);
+                        printStringLn("Confidence: " + (rstring)confidence);
+                        printStringLn("Is Final: " + (rstring)isFinal);
+                        printStringLn("Backend: " + backend);
+                        printStringLn("Language: " + languageCode);
+                        printStringLn("Start Time: " + (rstring)startTime + "ms");
+                        printStringLn("End Time: " + (rstring)endTime + "ms");
+                        
+                        // Show metadata
+                        if (size(metadata) > 0ul) {
+                            printStringLn("Metadata:");
+                            for (rstring key in keys(metadata)) {
+                                printStringLn("  " + key + " = " + metadata[key]);
+                            }
+                        }
+                    }
+                }
+                onPunct Transcription: {
+                    if (currentPunct() == Sys.FinalMarker) {
+                        printStringLn("\n=== FINAL SUMMARY ===");
+                        printStringLn("Full Transcript: " + fullTranscript);
+                        printStringLn("Total Results: " + (rstring)resultCount);
+                        if (resultCount > 0) {
+                            printStringLn("Average Confidence: " + 
+                                        (rstring)(totalConfidence / (float64)resultCount));
+                        }
+                        printStringLn("==================\n");
+                    }
+                }
+        }
+        
+        // Also demonstrate backend capabilities query
+        () as ShowCapabilities = Custom(Transcription as In) {
+            logic
+                state: {
+                    mutable boolean shown = false;
+                }
+                onTuple In: {
+                    if (!shown) {
+                        printStringLn("\n=== Backend Capabilities ===");
+                        printStringLn("Backend: " + $backend);
+                        printStringLn("Supports Streaming: true");
+                        printStringLn("Supports Word Timings: false");
+                        printStringLn("Languages: en-US, en-GB, en-IN, en-AU");
+                        printStringLn("Sample Rate: 16000 Hz (fixed)");
+                        printStringLn("===========================\n");
+                        shown = true;
+                    }
+                }
+        }
+}
+
+/**
+ * Composite to demonstrate 2-channel telephony with UnifiedSTT
+ */
+composite UnifiedSTT2ChannelDemo {
+    param
+        expression<rstring> $stereoFile:
+            getSubmissionTimeValue("stereoFile", 
+                "/path/to/stereo.wav");
+                
+    graph
+        // Split stereo telephony audio
+        (stream<ChannelAudioStream> CallerAudio;
+         stream<ChannelAudioStream> AgentAudio) = StereoFileAudioSource() {
+            param
+                filename: $stereoFile;
+                blockSize: 8000u;
+                leftChannelRole: "caller";
+                rightChannelRole: "agent";
+                encoding: "pcm16";
+                sampleRate: 8000;
+                targetSampleRate: 16000;  // Upsample for STT
+        }
+        
+        // Convert caller channel to unified format
+        stream<UnifiedAudioInput> CallerUnified = Custom(CallerAudio) {
+            logic
+                onTuple CallerAudio: {
+                    UnifiedAudioInput unified = {};
+                    unified.audioData = CallerAudio.audioData;
+                    unified.audioTimestamp = CallerAudio.audioTimestamp;
+                    unified.encoding = "pcm16";
+                    unified.sampleRate = CallerAudio.sampleRate;
+                    unified.channels = 1;
+                    unified.bitsPerSample = CallerAudio.bitsPerSample;
+                    unified.languageCode = "en-US";
+                    unified.channelInfo = CallerAudio.channelInfo;
+                    submit(unified, CallerUnified);
+                }
+        }
+        
+        // Transcribe caller
+        stream<UnifiedTranscriptionOutput> CallerTranscript = UnifiedSTT(CallerUnified) {
+            param
+                backend: "nemo";
+                modelPath: getEnvironmentVariable("NEMO_MODEL_PATH", 
+                    "../opt/models/fastconformer_ctc_export/model.onnx");
+                vocabPath: getEnvironmentVariable("NEMO_VOCAB_PATH",
+                    "../opt/models/fastconformer_ctc_export/tokens.txt");
+        }
+        
+        // Display caller results
+        () as CallerDisplay = Custom(CallerTranscript) {
+            logic
+                onTuple CallerTranscript: {
+                    if (!text.empty()) {
+                        printStringLn("[CALLER] " + text);
+                    }
+                }
+        }
+}

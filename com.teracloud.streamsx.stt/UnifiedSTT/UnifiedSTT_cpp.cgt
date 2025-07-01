@@ -1,0 +1,388 @@
+<%
+    my $backend = $model->getParameterByName("backend");
+    my $modelPath = $model->getParameterByName("modelPath");
+    my $vocabPath = $model->getParameterByName("vocabPath");
+    my $apiEndpoint = $model->getParameterByName("apiEndpoint");
+    my $apiKey = $model->getParameterByName("apiKey");
+    my $region = $model->getParameterByName("region");
+    my $languageCode = $model->getParameterByName("languageCode");
+    my $enableWordTimings = $model->getParameterByName("enableWordTimings");
+    my $enablePunctuation = $model->getParameterByName("enablePunctuation");
+    my $enableSpeakerLabels = $model->getParameterByName("enableSpeakerLabels");
+    my $maxAlternatives = $model->getParameterByName("maxAlternatives");
+    my $backendConfig = $model->getParameterByName("backendConfig");
+    my $fallbackBackend = $model->getParameterByName("fallbackBackend");
+    my $timeout = $model->getParameterByName("timeout");
+%>
+
+<%SPL::CodeGen::implementationPrologue($model);%>
+
+#include "backends/STTBackendAdapter.hpp"
+#include <iostream>
+#include <chrono>
+
+using namespace com::teracloud::streamsx::stt;
+
+MY_OPERATOR::MY_OPERATOR()
+    : activeBackend_(nullptr),
+      usesFallback_(false),
+      primaryFailures_(0),
+      fallbackAttempts_(0) {
+}
+
+MY_OPERATOR::~MY_OPERATOR() {
+    // Cleanup handled by unique_ptr
+}
+
+void MY_OPERATOR::allPortsReady() {
+    // Get backend type
+    <% if ($backend->hasValue()) { %>
+    backendType_ = <%=$backend->getValueAt(0)->getCppExpression()%>;
+    <% } else { %>
+    SPLAPPTRC(L_ERROR, "UnifiedSTT: backend parameter is required", "UnifiedSTT");
+    throw std::runtime_error("backend parameter is required");
+    <% } %>
+    
+    // Get optional fallback backend
+    <% if ($fallbackBackend && $fallbackBackend->hasValue()) { %>
+    fallbackBackendType_ = <%=$fallbackBackend->getValueAt(0)->getCppExpression()%>;
+    <% } else { %>
+    fallbackBackendType_ = "";
+    <% } %>
+    
+    // Get timeout
+    <% if ($timeout && $timeout->hasValue()) { %>
+    timeout_ = <%=$timeout->getValueAt(0)->getCppExpression()%>;
+    <% } else { %>
+    timeout_ = 30.0;  // Default 30 seconds
+    <% } %>
+    
+    // Initialize transcription options
+    transcriptionOptions_.languageCode = getLanguageCode();
+    transcriptionOptions_.enableWordTimings = getEnableWordTimings();
+    transcriptionOptions_.enablePunctuation = getEnablePunctuation();
+    transcriptionOptions_.enableSpeakerLabels = getEnableSpeakerLabels();
+    transcriptionOptions_.maxAlternatives = getMaxAlternatives();
+    
+    // Initialize backends
+    if (!initializeBackends()) {
+        SPLAPPTRC(L_ERROR, "UnifiedSTT: Failed to initialize backends", "UnifiedSTT");
+        throw std::runtime_error("Failed to initialize STT backends");
+    }
+    
+    SPLAPPTRC(L_INFO, "UnifiedSTT: Ready with backend " + backendType_, "UnifiedSTT");
+}
+
+void MY_OPERATOR::prepareToShutdown() {
+    std::lock_guard<std::mutex> lock(processingMutex_);
+    
+    // Finalize any pending transcriptions
+    if (activeBackend_) {
+        try {
+            auto result = activeBackend_->finalize();
+            if (!result.hasError && !result.text.empty()) {
+                // Note: Can't submit tuples during shutdown
+                SPLAPPTRC(L_INFO, "UnifiedSTT: Final transcription: " + result.text, "UnifiedSTT");
+            }
+        } catch (...) {
+            // Ignore errors during shutdown
+        }
+    }
+    
+    logBackendStatus();
+}
+
+void MY_OPERATOR::process(Tuple const & tuple, uint32_t port) {
+    std::lock_guard<std::mutex> lock(processingMutex_);
+    
+    const IPort0Type& inputTuple = static_cast<const IPort0Type&>(tuple);
+    processAudioInput(inputTuple);
+}
+
+void MY_OPERATOR::process(Punctuation const & punct, uint32_t port) {
+    if (punct == Punctuation::FinalMarker) {
+        std::lock_guard<std::mutex> lock(processingMutex_);
+        
+        if (activeBackend_) {
+            try {
+                auto result = activeBackend_->finalize();
+                if (!result.hasError && !result.text.empty()) {
+                    // Create a dummy input tuple for context
+                    IPort0Type dummyTuple;
+                    submitTranscriptionOutput(result, dummyTuple);
+                }
+            } catch (const std::exception& e) {
+                SPLAPPTRC(L_ERROR, "UnifiedSTT: Error finalizing: " + std::string(e.what()), "UnifiedSTT");
+            }
+        }
+    }
+    
+    // Forward punctuation
+    submit(punct, 0);
+}
+
+bool MY_OPERATOR::initializeBackends() {
+    try {
+        // Build configuration for primary backend
+        backendConfig_ = buildBackendConfig(backendType_);
+        
+        // Create primary backend
+        primaryBackend_ = STTBackendFactory::createBackend(backendType_, backendConfig_);
+        
+        if (!primaryBackend_) {
+            SPLAPPTRC(L_ERROR, "UnifiedSTT: Failed to create primary backend: " + backendType_, "UnifiedSTT");
+            return false;
+        }
+        
+        activeBackend_ = primaryBackend_.get();
+        
+        // Create fallback backend if specified
+        if (!fallbackBackendType_.empty()) {
+            fallbackConfig_ = buildBackendConfig(fallbackBackendType_);
+            fallbackBackend_ = STTBackendFactory::createBackend(fallbackBackendType_, fallbackConfig_);
+            
+            if (!fallbackBackend_) {
+                SPLAPPTRC(L_WARN, "UnifiedSTT: Failed to create fallback backend: " + fallbackBackendType_, "UnifiedSTT");
+                // Continue without fallback
+            }
+        }
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        SPLAPPTRC(L_ERROR, "UnifiedSTT: Backend initialization error: " + std::string(e.what()), "UnifiedSTT");
+        return false;
+    }
+}
+
+BackendConfig MY_OPERATOR::buildBackendConfig(const std::string& backendType) {
+    BackendConfig config;
+    config.backendType = backendType;
+    
+    // Add common parameters
+    <% if ($modelPath && $modelPath->hasValue()) { %>
+    config.parameters["modelPath"] = <%=$modelPath->getValueAt(0)->getCppExpression()%>;
+    <% } %>
+    
+    <% if ($vocabPath && $vocabPath->hasValue()) { %>
+    config.parameters["vocabPath"] = <%=$vocabPath->getValueAt(0)->getCppExpression()%>;
+    <% } %>
+    
+    <% if ($apiEndpoint && $apiEndpoint->hasValue()) { %>
+    config.parameters["apiEndpoint"] = <%=$apiEndpoint->getValueAt(0)->getCppExpression()%>;
+    <% } %>
+    
+    <% if ($apiKey && $apiKey->hasValue()) { %>
+    config.credentials["apiKey"] = <%=$apiKey->getValueAt(0)->getCppExpression()%>;
+    <% } %>
+    
+    <% if ($region && $region->hasValue()) { %>
+    config.parameters["region"] = <%=$region->getValueAt(0)->getCppExpression()%>;
+    <% } %>
+    
+    // Add backend-specific configuration
+    auto backendConfigMap = getBackendConfig();
+    for (auto it = backendConfigMap.begin(); it != backendConfigMap.end(); ++it) {
+        config.parameters[static_cast<std::string>(it->key())] = 
+            static_cast<std::string>(it->value());
+    }
+    
+    return config;
+}
+
+void MY_OPERATOR::processAudioInput(const IPort0Type& inputTuple) {
+    try {
+        // Extract audio data from input tuple
+        AudioChunk audioChunk;
+        audioChunk.data = inputTuple.get_audioData().getData();
+        audioChunk.size = inputTuple.get_audioData().getSize();
+        audioChunk.encoding = static_cast<std::string>(inputTuple.get_encoding());
+        audioChunk.sampleRate = inputTuple.get_sampleRate();
+        audioChunk.channels = inputTuple.get_channels();
+        audioChunk.bitsPerSample = inputTuple.get_bitsPerSample();
+        audioChunk.timestamp = inputTuple.get_audioTimestamp();
+        
+        // Extract channel information
+        const auto& channelInfo = inputTuple.get_channelInfo();
+        audioChunk.channelNumber = channelInfo.get_channelNumber();
+        audioChunk.channelRole = static_cast<std::string>(channelInfo.get_channelRole());
+        
+        // Extract metadata
+        auto metadata = inputTuple.get_metadata();
+        for (auto it = metadata.begin(); it != metadata.end(); ++it) {
+            audioChunk.metadata[static_cast<std::string>(it->key())] = 
+                static_cast<std::string>(it->value());
+        }
+        
+        // Process audio through active backend
+        auto result = activeBackend_->processAudio(audioChunk, transcriptionOptions_);
+        
+        // Handle errors with fallback
+        if (result.hasError && fallbackBackend_ && !usesFallback_) {
+            SPLAPPTRC(L_WARN, "UnifiedSTT: Primary backend error, switching to fallback: " + 
+                     result.errorMessage, "UnifiedSTT");
+            primaryFailures_++;
+            
+            if (switchToFallback()) {
+                // Retry with fallback
+                result = activeBackend_->processAudio(audioChunk, transcriptionOptions_);
+            }
+        }
+        
+        // Submit result if we have transcription
+        if (!result.hasError && !result.text.empty()) {
+            submitTranscriptionOutput(result, inputTuple);
+        }
+        
+    } catch (const std::exception& e) {
+        SPLAPPTRC(L_ERROR, "UnifiedSTT: Error processing audio: " + std::string(e.what()), "UnifiedSTT");
+    }
+}
+
+void MY_OPERATOR::submitTranscriptionOutput(const TranscriptionResult& result,
+                                          const IPort0Type& inputTuple) {
+    OPort0Type outputTuple;
+    
+    // Set basic transcription fields
+    outputTuple.set_text(result.text);
+    outputTuple.set_confidence(result.confidence);
+    outputTuple.set_isFinal(result.isFinal);
+    
+    // Set word timings
+    SPL::list<OPort0Type::WordTiming> wordTimings;
+    for (const auto& wt : result.wordTimings) {
+        OPort0Type::WordTiming splWT;
+        splWT.set_word(wt.word);
+        splWT.set_startTime(wt.startTime);
+        splWT.set_endTime(wt.endTime);
+        splWT.set_confidence(wt.confidence);
+        wordTimings.push_back(splWT);
+    }
+    outputTuple.set_wordTimings(wordTimings);
+    
+    // Set speaker info
+    SPL::list<OPort0Type::SpeakerInfo> speakers;
+    for (const auto& si : result.speakers) {
+        OPort0Type::SpeakerInfo splSI;
+        splSI.set_speakerId(si.speakerId);
+        splSI.set_speakerLabel(si.speakerLabel);
+        splSI.set_confidence(si.confidence);
+        speakers.push_back(splSI);
+    }
+    outputTuple.set_speakers(speakers);
+    
+    // Copy channel info from input
+    outputTuple.set_channelInfo(inputTuple.get_channelInfo());
+    
+    // Set timing
+    outputTuple.set_startTime(result.startTime);
+    outputTuple.set_endTime(result.endTime);
+    
+    // Set backend info
+    outputTuple.set_backend(activeBackend_->getBackendType());
+    outputTuple.set_languageCode(result.detectedLanguage.empty() ? 
+                                transcriptionOptions_.languageCode : 
+                                result.detectedLanguage);
+    
+    // Set metadata
+    SPL::map<SPL::rstring, SPL::rstring> metadata;
+    for (const auto& kv : result.metadata) {
+        metadata.insert(std::make_pair(SPL::rstring(kv.first), SPL::rstring(kv.second)));
+    }
+    outputTuple.set_metadata(metadata);
+    
+    // Set alternatives
+    SPL::list<SPL::rstring> alternatives;
+    for (const auto& alt : result.alternatives) {
+        alternatives.push_back(SPL::rstring(alt));
+    }
+    outputTuple.set_alternatives(alternatives);
+    
+    submit(outputTuple, 0);
+}
+
+bool MY_OPERATOR::switchToFallback() {
+    if (!fallbackBackend_ || usesFallback_) {
+        return false;
+    }
+    
+    usesFallback_ = true;
+    fallbackAttempts_++;
+    activeBackend_ = fallbackBackend_.get();
+    
+    SPLAPPTRC(L_INFO, "UnifiedSTT: Switched to fallback backend: " + fallbackBackendType_, "UnifiedSTT");
+    
+    return true;
+}
+
+void MY_OPERATOR::logBackendStatus() {
+    SPLAPPTRC(L_INFO, "UnifiedSTT: Statistics - Primary failures: " + 
+             SPL::spl_cast<SPL::rstring, uint64_t>::cast(primaryFailures_) +
+             ", Fallback attempts: " + 
+             SPL::spl_cast<SPL::rstring, uint64_t>::cast(fallbackAttempts_), "UnifiedSTT");
+    
+    if (primaryBackend_) {
+        auto status = primaryBackend_->getStatus();
+        for (const auto& kv : status) {
+            SPLAPPTRC(L_INFO, "UnifiedSTT: Primary backend " + kv.first + ": " + kv.second, "UnifiedSTT");
+        }
+    }
+    
+    if (fallbackBackend_) {
+        auto status = fallbackBackend_->getStatus();
+        for (const auto& kv : status) {
+            SPLAPPTRC(L_INFO, "UnifiedSTT: Fallback backend " + kv.first + ": " + kv.second, "UnifiedSTT");
+        }
+    }
+}
+
+// Parameter getter implementations
+std::string MY_OPERATOR::getLanguageCode() const {
+    <% if ($languageCode && $languageCode->hasValue()) { %>
+    return <%=$languageCode->getValueAt(0)->getCppExpression()%>;
+    <% } else { %>
+    return "en-US";
+    <% } %>
+}
+
+bool MY_OPERATOR::getEnableWordTimings() const {
+    <% if ($enableWordTimings && $enableWordTimings->hasValue()) { %>
+    return <%=$enableWordTimings->getValueAt(0)->getCppExpression()%>;
+    <% } else { %>
+    return false;
+    <% } %>
+}
+
+bool MY_OPERATOR::getEnablePunctuation() const {
+    <% if ($enablePunctuation && $enablePunctuation->hasValue()) { %>
+    return <%=$enablePunctuation->getValueAt(0)->getCppExpression()%>;
+    <% } else { %>
+    return true;
+    <% } %>
+}
+
+bool MY_OPERATOR::getEnableSpeakerLabels() const {
+    <% if ($enableSpeakerLabels && $enableSpeakerLabels->hasValue()) { %>
+    return <%=$enableSpeakerLabels->getValueAt(0)->getCppExpression()%>;
+    <% } else { %>
+    return false;
+    <% } %>
+}
+
+int32_t MY_OPERATOR::getMaxAlternatives() const {
+    <% if ($maxAlternatives && $maxAlternatives->hasValue()) { %>
+    return <%=$maxAlternatives->getValueAt(0)->getCppExpression()%>;
+    <% } else { %>
+    return 1;
+    <% } %>
+}
+
+SPL::map<SPL::rstring, SPL::rstring> MY_OPERATOR::getBackendConfig() const {
+    <% if ($backendConfig && $backendConfig->hasValue()) { %>
+    return <%=$backendConfig->getValueAt(0)->getCppExpression()%>;
+    <% } else { %>
+    return SPL::map<SPL::rstring, SPL::rstring>();
+    <% } %>
+}
+
+<%SPL::CodeGen::implementationEpilogue($model);%>

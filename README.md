@@ -319,6 +319,22 @@ python impl/bin/export_fastconformer_with_preprocessing.py
 
 ### Primary Operators
 
+#### UnifiedSTT (NEW)
+- **Purpose**: Unified interface for multiple STT backends
+- **Status**: In development - currently supports NeMo backend
+- **Input**: UnifiedAudioInput stream
+- **Output**: UnifiedTranscriptionOutput with backend info
+- **Key Features**:
+  - Runtime backend selection
+  - Automatic fallback support
+  - Consistent output across backends
+  - 2-channel telephony support
+- **Parameters**:
+  - `backend`: STT backend to use ("nemo", "watson" planned)
+  - `modelPath`: Path to model (backend-specific)
+  - `fallbackBackend`: Optional backup backend
+  - See [UnifiedSTT Guide](doc/UNIFIED_STT_GUIDE.md) for details
+
 #### NeMoSTT
 - **Purpose**: Real-time speech-to-text using NVIDIA NeMo models
 - **Input**: Audio chunks (blob) 

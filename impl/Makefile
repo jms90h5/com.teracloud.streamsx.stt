@@ -22,6 +22,9 @@ CXXFLAGS := -O3 -DNDEBUG
 
 # Source files - ONNX implementation with VAD, feature extraction, cache management, pipeline, and NeMo models
 SOURCES = src/OnnxSTTImpl.cpp src/OnnxSTTInterface.cpp src/ZipformerRNNT.cpp src/SileroVAD.cpp src/KaldifeatExtractor.cpp src/CacheManager.cpp src/STTPipeline.cpp src/NeMoCacheAwareConformer.cpp src/NeMoCacheAwareStreaming.cpp src/ModelFactory.cpp src/ImprovedFbank.cpp src/ImprovedFbankAdapter.cpp src/NeMoCTCModel.cpp src/StereoAudioSplitter.cpp
+
+# Backend adapter sources
+BACKEND_SOURCES = src/backends/STTBackendFactory.cpp src/backends/NeMoSTTAdapter.cpp
 # Additional source in include directory
 INCLUDE_SOURCES = include/NeMoCTCImpl.cpp
 
@@ -29,7 +32,7 @@ INCLUDE_SOURCES = include/NeMoCTCImpl.cpp
 BUILD_DIR = build
 
 # Object files (in build directory)
-OBJECTS = $(SOURCES:src/%.cpp=$(BUILD_DIR)/%.o) $(INCLUDE_SOURCES:include/%.cpp=$(BUILD_DIR)/%.o)
+OBJECTS = $(SOURCES:src/%.cpp=$(BUILD_DIR)/%.o) $(INCLUDE_SOURCES:include/%.cpp=$(BUILD_DIR)/%.o) $(BACKEND_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
 
 # Target library
 LIB = lib/libs2t_impl.so
@@ -69,6 +72,14 @@ $(BUILD_DIR)/%.o: src/%.cpp | $(BUILD_DIR)
 
 # Compile include files to build directory
 $(BUILD_DIR)/%.o: include/%.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+# Create subdirectory for backends
+$(BUILD_DIR)/backends:
+	mkdir -p $@
+
+# Compile backend files
+$(BUILD_DIR)/backends/%.o: src/backends/%.cpp | $(BUILD_DIR)/backends
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 clean:

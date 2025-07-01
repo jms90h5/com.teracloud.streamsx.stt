@@ -1,0 +1,84 @@
+<%
+    my $backend = $model->getParameterByName("backend");
+    my $modelPath = $model->getParameterByName("modelPath");
+    my $vocabPath = $model->getParameterByName("vocabPath");
+    my $apiEndpoint = $model->getParameterByName("apiEndpoint");
+    my $apiKey = $model->getParameterByName("apiKey");
+    my $region = $model->getParameterByName("region");
+    my $languageCode = $model->getParameterByName("languageCode");
+    my $enableWordTimings = $model->getParameterByName("enableWordTimings");
+    my $enablePunctuation = $model->getParameterByName("enablePunctuation");
+    my $enableSpeakerLabels = $model->getParameterByName("enableSpeakerLabels");
+    my $maxAlternatives = $model->getParameterByName("maxAlternatives");
+    my $backendConfig = $model->getParameterByName("backendConfig");
+    my $fallbackBackend = $model->getParameterByName("fallbackBackend");
+    my $timeout = $model->getParameterByName("timeout");
+%>
+
+#include "backends/STTBackendAdapter.hpp"
+#include <memory>
+#include <string>
+#include <map>
+#include <mutex>
+
+<%SPL::CodeGen::headerPrologue($model);%>
+
+using namespace com::teracloud::streamsx::stt;
+
+class MY_OPERATOR : public MY_BASE_OPERATOR 
+{
+public:
+    MY_OPERATOR();
+    virtual ~MY_OPERATOR();
+    
+    void allPortsReady();
+    void prepareToShutdown();
+    
+    void process(Tuple const & tuple, uint32_t port);
+    void process(Punctuation const & punct, uint32_t port);
+    
+private:
+    // Backend configuration
+    std::string backendType_;
+    std::string fallbackBackendType_;
+    double timeout_;
+    
+    // Primary and fallback backend adapters
+    std::unique_ptr<STTBackendAdapter> primaryBackend_;
+    std::unique_ptr<STTBackendAdapter> fallbackBackend_;
+    
+    // Current active backend
+    STTBackendAdapter* activeBackend_;
+    
+    // Transcription options
+    TranscriptionOptions transcriptionOptions_;
+    
+    // Backend configuration
+    BackendConfig backendConfig_;
+    BackendConfig fallbackConfig_;
+    
+    // State management
+    std::mutex processingMutex_;
+    bool usesFallback_;
+    uint64_t primaryFailures_;
+    uint64_t fallbackAttempts_;
+    
+    // Helper methods
+    bool initializeBackends();
+    BackendConfig buildBackendConfig(const std::string& backendType);
+    void processAudioInput(const IPort0Type& tuple);
+    void submitTranscriptionOutput(const TranscriptionResult& result, 
+                                 const IPort0Type& inputTuple);
+    bool switchToFallback();
+    void logBackendStatus();
+    
+    // Parameter getters with defaults
+    std::string getLanguageCode() const;
+    bool getEnableWordTimings() const;
+    bool getEnablePunctuation() const;
+    bool getEnableSpeakerLabels() const;
+    int32_t getMaxAlternatives() const;
+    SPL::map<SPL::rstring, SPL::rstring> getBackendConfig() const;
+};
+
+<%SPL::CodeGen::headerEpilogue($model);%>
