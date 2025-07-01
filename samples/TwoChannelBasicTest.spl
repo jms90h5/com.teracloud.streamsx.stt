@@ -3,12 +3,21 @@ use com.teracloud.streamsx.stt::*;
 /**
  * Basic test of 2-channel audio processing.
  * Reads a stereo WAV file and displays channel information.
+ * 
+ * Usage:
+ *   sc -M TwoChannelBasicTest -t ../
+ *   ./output/bin/standalone -d . audioFile=/path/to/your/stereo.wav
+ * 
+ * The audio file should be:
+ *   - WAV format with 2 channels (stereo)
+ *   - 8kHz or 16kHz sample rate
+ *   - 16-bit PCM encoding
  */
 composite TwoChannelBasicTest {
     param
         expression<rstring> $audioFile: 
             getSubmissionTimeValue("audioFile", 
-                "../OneDrive_2_6-30-2025/RTP-Audio-narrowband-2channel-G711.wav");
+                "/path/to/your/stereo.wav");  // UPDATE THIS PATH
                 
     graph
         // Read stereo audio file and split channels

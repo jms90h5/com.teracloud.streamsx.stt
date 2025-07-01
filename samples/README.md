@@ -4,7 +4,7 @@ This directory contains sample applications for the TeraCloud Streams Speech-to-
 
 ## Current Status
 
-**⚠️ IMPORTANT**: These samples may not currently compile due to known issues with ONNX Runtime header conflicts. See `../doc/ARCHITECTURE.md` for detailed information about current status and ongoing fixes.
+All samples are now working correctly! The ONNX header conflict has been resolved.
 
 ## Available Samples
 

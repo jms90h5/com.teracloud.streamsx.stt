@@ -126,7 +126,9 @@ sc -M BasicSTTExample -t ../ && ./output/bin/standalone -d .
 sc -M NeMoCTCSample -t ../ && ./output/bin/standalone -d .
 
 # Test 2-channel audio processing
-sc -M TwoChannelBasicTest -t ../ && ./output/bin/standalone -d . audioFile=/path/to/stereo.wav
+# Note: You must provide your own stereo WAV file (2 channels, 8/16kHz, 16-bit PCM)
+sc -M TwoChannelBasicTest -t ../
+./output/bin/standalone -d . audioFile=/path/to/your/stereo.wav
 ```
 
 **Important Notes for SPL Applications**:
