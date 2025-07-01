@@ -3,6 +3,7 @@
   <toolkit name="samples" requiredProductVersion="4.0" version="1.0.0">
     <description>Toolkit Description</description>
     <uriTable>
+      <uri index="8" value="SimpleStereoTest.spl"/>
       <uri index="6" value="SimpleTest.spl"/>
       <uri index="5" value="TwoChannelBasicTest.spl"/>
       <uri index="4" value="SimpleTestRealtime.spl"/>
@@ -29,6 +30,9 @@
         <parameter defaultValue="(boolean)getSubmissionTimeValue(&quot;realtimePlayback&quot;, &quot;false&quot;)" metaType="Expression" name="realtimePlayback" optional="true" type="&lt;boolean>"/>
         <parameter defaultValue="(int32)getSubmissionTimeValue(&quot;chunkSizeMs&quot;, &quot;512&quot;)" metaType="Expression" name="chunkSizeMs" optional="true" type="&lt;int32>"/>
         <type column="9" line="32" name="TranscriptionWithMetrics" type="tuple&lt;rstring transcription, float64 processingTimeMs, float64 audioChunkMs, float64 speedupFactor, int32 chunkNumber, float64 elapsedTimeSec>" uriIndex="7"/>
+      </compositeOp>
+      <compositeOp column="11" line="5" name="SimpleStereoTest" potentialMain="true" uriIndex="8">
+        <parameter defaultValue="getSubmissionTimeValue(&quot;audioFile&quot;, &quot;../OneDrive_2_6-30-2025/RTP-Audio-narrowband-2channel-G711.wav&quot;)" metaType="Expression" name="audioFile" optional="true" type="&lt;rstring>"/>
       </compositeOp>
     </namespace>
     <sabFiles>

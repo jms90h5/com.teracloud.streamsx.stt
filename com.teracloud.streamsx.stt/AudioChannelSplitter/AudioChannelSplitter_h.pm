@@ -20,6 +20,7 @@ sub main::generate($$) {
    print '#include <StereoAudioSplitter.hpp>', "\n";
    print '#include <memory>', "\n";
    print '#include <vector>', "\n";
+   print '#include <string>', "\n";
    print "\n";
    SPL::CodeGen::headerPrologue($model);
    print "\n";
@@ -48,10 +49,6 @@ sub main::generate($$) {
    print '    // Processing state', "\n";
    print '    uint64_t tuplesProcessed_;', "\n";
    print '    uint64_t bytesProcessed_;', "\n";
-   print '    ', "\n";
-   print '    // Channel buffers for current processing', "\n";
-   print '    std::vector<float> leftBuffer_;', "\n";
-   print '    std::vector<float> rightBuffer_;', "\n";
    print '    ', "\n";
    print '    // Helper methods', "\n";
    print '    void processStereoAudioBlob(const SPL::blob& audioData, uint64_t audioTimestamp);', "\n";

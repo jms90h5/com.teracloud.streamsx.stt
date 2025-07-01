@@ -1,0 +1,63 @@
+/**
+ * Simple test that demonstrates 2-channel audio type usage
+ * without the complex AudioChannelSplitter operator.
+ */
+composite SimpleStereoTest {
+    param
+        expression<rstring> $audioFile: 
+            getSubmissionTimeValue("audioFile", 
+                "../OneDrive_2_6-30-2025/RTP-Audio-narrowband-2channel-G711.wav");
+                
+    graph
+        // Read audio file in chunks
+        stream<blob audioData> AudioStream = FileSource() {
+            param
+                file: $audioFile;
+                format: block;
+                blockSize: 16000u;  // 1 second at 8kHz stereo 16-bit
+        }
+        
+        // Add sequence numbers
+        stream<blob audioData, uint64 chunkNumber> NumberedAudio = Custom(AudioStream) {
+            logic
+                state: {
+                    mutable uint64 count = 0ul;
+                }
+                onTuple AudioStream: {
+                    submit({
+                        audioData = audioData,
+                        chunkNumber = count++
+                    }, NumberedAudio);
+                }
+        }
+        
+        // Display chunk information
+        () as Display = Custom(NumberedAudio) {
+            logic
+                state: {
+                    mutable uint64 totalBytes = 0ul;
+                    mutable uint64 totalChunks = 0ul;
+                }
+                onTuple NumberedAudio: {
+                    totalBytes += (uint64)size(audioData);
+                    totalChunks = chunkNumber + 1ul;
+                    
+                    if (chunkNumber < 5ul || chunkNumber % 100ul == 0ul) {
+                        printStringLn("Chunk " + (rstring)chunkNumber + 
+                                     ": " + (rstring)size(audioData) + " bytes" +
+                                     " (total: " + (rstring)totalBytes + " bytes)");
+                    }
+                }
+                onPunct NumberedAudio: {
+                    if (currentPunct() == Sys.FinalMarker) {
+                        printStringLn("\nProcessing complete!");
+                        printStringLn("Total chunks: " + (rstring)totalChunks);
+                        printStringLn("Total bytes: " + (rstring)totalBytes);
+                        
+                        // Calculate duration (stereo 16-bit at 8kHz)
+                        float64 duration = (float64)totalBytes / (2.0 * 2.0 * 8000.0);
+                        printStringLn("Duration: " + (rstring)duration + " seconds");
+                    }
+                }
+        }
+}

@@ -37,10 +37,10 @@ models that require higher sample rates.
           <value name="ulaw"/>
           <value name="alaw"/>
         </customLiterals>
-        <parameter cardinality="1" expressionMode="CustomLiteral" name="stereoFormat" optional="true" type="StereoFormat">
+        <parameter cardinality="1" expressionMode="AttributeFree" name="stereoFormat" optional="true" type="rstring">
           <description>Format of the input stereo audio (default: interleaved)</description>
         </parameter>
-        <parameter cardinality="1" expressionMode="CustomLiteral" name="encoding" optional="true" type="AudioEncoding">
+        <parameter cardinality="1" expressionMode="AttributeFree" name="encoding" optional="true" type="rstring">
           <description>Audio encoding type (default: pcm16)</description>
         </parameter>
         <parameter cardinality="1" expressionMode="AttributeFree" name="leftChannelRole" optional="true" type="rstring">

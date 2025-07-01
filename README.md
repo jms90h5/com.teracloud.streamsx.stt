@@ -29,6 +29,7 @@ python3 test_working_input_again.py
 - **Multiple Model Support** - Extensible architecture for different ASR models
 - **Streaming-Ready** - Designed for real-time audio processing
 - **SPL Operator Interface** - Easy integration with Streams applications
+- **2-Channel Audio Support** - Process stereo/telephony audio with channel separation
 
 ## Quick Start
 
@@ -123,6 +124,9 @@ sc -M SimpleTest -t ../
 # Or build and run other samples
 sc -M BasicSTTExample -t ../ && ./output/bin/standalone -d .
 sc -M NeMoCTCSample -t ../ && ./output/bin/standalone -d .
+
+# Test 2-channel audio processing
+sc -M TwoChannelBasicTest -t ../ && ./output/bin/standalone -d . audioFile=/path/to/stereo.wav
 ```
 
 **Important Notes for SPL Applications**:
@@ -307,6 +311,62 @@ python impl/bin/export_model_ctc_patched.py
 
 # Or other export scripts
 python impl/bin/export_fastconformer_with_preprocessing.py
+```
+
+## SPL Operators
+
+### Primary Operators
+
+#### NeMoSTT
+- **Purpose**: Real-time speech-to-text using NVIDIA NeMo models
+- **Input**: Audio chunks (blob) 
+- **Output**: Transcription text
+- **Key Parameters**: 
+  - `modelPath`: Path to ONNX model file
+  - `vocabPath`: Path to vocabulary file
+  - `sampleRate`: Audio sample rate (default: 16000)
+
+#### AudioChannelSplitter
+- **Purpose**: Split stereo audio into separate left/right channel streams
+- **Input**: Stereo audio stream with audioData (blob) and audioTimestamp (uint64)
+- **Output**: Two streams of ChannelAudioStream type (left and right channels)
+- **Key Parameters**:
+  - `stereoFormat`: "interleaved" or "nonInterleaved" 
+  - `encoding`: "pcm16", "pcm8", "ulaw", "alaw"
+  - `leftChannelRole`: Semantic role for left channel (default: "caller")
+  - `rightChannelRole`: Semantic role for right channel (default: "agent")
+  - `sampleRate`: Input sample rate (default: 8000)
+  - `targetSampleRate`: Resample to this rate, 0=no resampling
+
+### Composite Operators
+
+#### StereoFileAudioSource
+- **Purpose**: Read stereo audio files and output separate channel streams
+- **Combines**: FileSource + AudioChannelSplitter
+- **Output**: Left and right ChannelAudioStream
+- **Use Case**: Processing recorded 2-channel telephony calls
+
+### Type Definitions
+
+#### ChannelAudioStream
+```spl
+type ChannelAudioStream = tuple<
+    blob audioData,               // PCM audio data for single channel
+    uint64 audioTimestamp,        // Timestamp in milliseconds
+    ChannelMetadata channelInfo,  // Channel identification
+    int32 sampleRate,            // Sample rate in Hz
+    int32 bitsPerSample          // Bits per sample
+>;
+```
+
+#### ChannelMetadata
+```spl
+type ChannelMetadata = tuple<
+    int32 channelNumber,         // 0=left, 1=right
+    rstring channelRole,         // "caller", "agent", etc.
+    rstring phoneNumber,         // Optional phone number
+    map<rstring,rstring> additionalMetadata
+>;
 ```
 
 ## Architecture

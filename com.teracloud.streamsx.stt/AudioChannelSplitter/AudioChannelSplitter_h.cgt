@@ -12,6 +12,7 @@
 #include <StereoAudioSplitter.hpp>
 #include <memory>
 #include <vector>
+#include <string>
 
 <%SPL::CodeGen::headerPrologue($model);%>
 
@@ -39,10 +40,6 @@ private:
     // Processing state
     uint64_t tuplesProcessed_;
     uint64_t bytesProcessed_;
-    
-    // Channel buffers for current processing
-    std::vector<float> leftBuffer_;
-    std::vector<float> rightBuffer_;
     
     // Helper methods
     void processStereoAudioBlob(const SPL::blob& audioData, uint64_t audioTimestamp);

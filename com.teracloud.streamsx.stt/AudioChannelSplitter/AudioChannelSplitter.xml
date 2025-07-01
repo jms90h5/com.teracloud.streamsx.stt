@@ -51,8 +51,8 @@ models that require higher sample rates.
         <description>Format of the input stereo audio (default: interleaved)</description>
         <optional>true</optional>
         <rewriteAllowed>false</rewriteAllowed>
-        <expressionMode>CustomLiteral</expressionMode>
-        <type>StereoFormat</type>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
         <cardinality>1</cardinality>
       </parameter>
       <parameter>
@@ -60,8 +60,8 @@ models that require higher sample rates.
         <description>Audio encoding type (default: pcm16)</description>
         <optional>true</optional>
         <rewriteAllowed>false</rewriteAllowed>
-        <expressionMode>CustomLiteral</expressionMode>
-        <type>AudioEncoding</type>
+        <expressionMode>AttributeFree</expressionMode>
+        <type>rstring</type>
         <cardinality>1</cardinality>
       </parameter>
       <parameter>
