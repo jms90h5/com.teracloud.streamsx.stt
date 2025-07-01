@@ -24,7 +24,7 @@ CXXFLAGS := -O3 -DNDEBUG
 SOURCES = src/OnnxSTTImpl.cpp src/OnnxSTTInterface.cpp src/ZipformerRNNT.cpp src/SileroVAD.cpp src/KaldifeatExtractor.cpp src/CacheManager.cpp src/STTPipeline.cpp src/NeMoCacheAwareConformer.cpp src/NeMoCacheAwareStreaming.cpp src/ModelFactory.cpp src/ImprovedFbank.cpp src/ImprovedFbankAdapter.cpp src/NeMoCTCModel.cpp src/StereoAudioSplitter.cpp
 
 # Backend adapter sources
-BACKEND_SOURCES = src/backends/STTBackendFactory.cpp src/backends/NeMoSTTAdapter.cpp
+BACKEND_SOURCES = src/backends/STTBackendFactory.cpp src/backends/NeMoSTTAdapter.cpp src/backends/WatsonSTTAdapter.cpp
 # Additional source in include directory
 INCLUDE_SOURCES = include/NeMoCTCImpl.cpp
 

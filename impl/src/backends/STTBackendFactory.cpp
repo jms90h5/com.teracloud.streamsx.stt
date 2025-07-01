@@ -1,8 +1,9 @@
 #include "backends/STTBackendAdapter.hpp"
 #include "backends/NeMoSTTAdapter.hpp"
+#include "backends/WatsonSTTAdapter.hpp"
 // Future includes:
-// #include "backends/WatsonSTTAdapter.hpp"
 // #include "backends/GoogleSTTAdapter.hpp"
+// #include "backends/AzureSTTAdapter.hpp"
 
 #include <unordered_map>
 #include <functional>
@@ -26,9 +27,14 @@ static void registerBuiltinBackends() {
             return std::make_unique<NeMoSTTAdapter>();
         };
         
+        // Register Watson backend (placeholder for now)
+        s_backendRegistry["watson"] = [](const BackendConfig& config) {
+            return std::make_unique<WatsonSTTAdapter>();
+        };
+        
         // Future backends will be registered here:
-        // s_backendRegistry["watson"] = [](const BackendConfig& config) {
-        //     return std::make_unique<WatsonSTTAdapter>();
+        // s_backendRegistry["google"] = [](const BackendConfig& config) {
+        //     return std::make_unique<GoogleSTTAdapter>();
         // };
         
         registered = true;
