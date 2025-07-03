@@ -101,9 +101,36 @@ This follows Streams conventions where:
 
 ## Operators
 
-### OnnxSTT (Primary)
+### UnifiedSTT (New Primary Interface)
 **Type**: C++ Primitive Operator  
-**Purpose**: ONNX-based speech recognition using FastConformer models
+**Purpose**: Unified multi-backend speech recognition interface
+
+**Schema**:
+- Input: `UnifiedAudioInput` (includes audio data, metadata, channel info)
+- Output: `UnifiedTranscriptionOutput` (text, confidence, word timings, alternatives)
+
+**Key Features**:
+- Runtime backend selection (NeMo, Watson, future: Google, Azure)
+- Automatic fallback to secondary backend on failure
+- Consistent interface across all STT providers
+- Rich metadata support including channel information
+- Designed for telephony and call center use cases
+
+**Architecture**:
+```
+UnifiedSTT
+├── STTBackendFactory
+│   └── Creates appropriate backend adapter
+├── STTBackendAdapter (interface)
+│   ├── NeMoSTTAdapter
+│   │   └── Uses NeMoCTCImpl
+│   ├── WatsonSTTAdapter
+│   │   └── WebSocket + IBM Cloud IAM
+│   └── Future adapters...
+└── Fallback mechanism
+```
+
+### OnnxSTT (Legacy Direct Access)
 
 **Schema**:
 - Input: `tuple<blob audioChunk, uint64 audioTimestamp>`
@@ -140,6 +167,67 @@ This follows Streams conventions where:
 
 **Implementation**: Uses FileSource with block format and Custom operator for timestamping
 
+### AudioChannelSplitter
+**Type**: C++ Primitive Operator  
+**Purpose**: Split stereo audio into separate channels for telephony
+
+**Schema**:
+- Input: `tuple<blob audioData, ...>`
+- Output: Two streams with channel-specific audio
+
+**Key Features**:
+- Supports telephony codecs (µ-law, A-law)
+- Channel role assignment (caller/agent)
+- Maintains synchronization between channels
+
+## Gateway Migration Philosophy
+
+The toolkit is undergoing a strategic migration to incorporate IBM STT Gateway functionality, creating a unified speech recognition solution for Teracloud Streams.
+
+### Design Principles
+
+1. **Preserve Existing Functionality**
+   - All current NeMo/ONNX operators continue to work unchanged
+   - Existing applications require no modifications
+   - Performance characteristics are maintained
+
+2. **Unified Interface**
+   - Single `UnifiedSTT` operator for all backends
+   - Common schema across all STT providers
+   - Consistent error handling and metadata
+
+3. **Backend Abstraction**
+   - Clean adapter pattern for each STT provider
+   - Isolated dependencies (Watson requires WebSocket, NeMo requires ONNX)
+   - Optional compilation of backends
+
+4. **Telephony Focus**
+   - First-class support for 2-channel audio
+   - Call metadata integration
+   - Voice Gateway compatibility
+
+### Migration Phases
+
+1. **Phase 1**: Foundation (✅ Complete)
+   - Unified type system
+   - Backend adapter interface
+   - Basic UnifiedSTT structure
+
+2. **Phase 2**: NeMo Integration (✅ Complete)
+   - NeMoSTTAdapter implementation
+   - UnifiedSTT operator functional
+   - Verified transcription output
+
+3. **Phase 3**: Watson STT (🚧 Next)
+   - WebSocket client implementation
+   - IBM Cloud authentication
+   - Streaming protocol support
+
+4. **Phase 4**: Voice Gateway
+   - Port VoiceGatewaySource operator
+   - Real-time call transcription
+   - SIP metadata handling
+
 ## Implementation Architecture
 
 ### C++ Implementation Library (`impl/`)
@@ -161,6 +249,42 @@ impl/
 ```
 
 ### Key Classes
+
+#### STTBackendAdapter (Abstract)
+Unified interface for all STT backends:
+```cpp
+class STTBackendAdapter {
+public:
+    virtual bool initialize(const BackendConfig& config) = 0;
+    virtual TranscriptionResult processAudio(
+        const AudioChunk& audio,
+        const TranscriptionOptions& options) = 0;
+    virtual TranscriptionResult finalize() = 0;
+    virtual BackendCapabilities getCapabilities() const = 0;
+    virtual bool isHealthy() const = 0;
+    virtual std::string getBackendType() const = 0;
+};
+```
+
+Implementations:
+- `NeMoSTTAdapter` - Wraps NeMoCTCImpl for local ONNX models
+- `WatsonSTTAdapter` - WebSocket client for IBM Watson STT
+- Future: `GoogleSTTAdapter`, `AzureSTTAdapter`
+
+#### STTBackendFactory
+Factory pattern for backend creation:
+```cpp
+class STTBackendFactory {
+public:
+    static std::unique_ptr<STTBackendAdapter> createBackend(
+        const std::string& backendType,
+        const BackendConfig& config);
+    
+    static void registerBackend(
+        const std::string& type,
+        BackendCreator creator);
+};
+```
 
 #### OnnxSTTInterface
 Primary interface between SPL and C++ implementation.

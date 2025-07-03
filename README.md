@@ -23,6 +23,7 @@ python3 test_working_input_again.py
 
 ## Key Features
 
+- **Unified Multi-Backend Interface** - Single operator supports multiple STT providers (NeMo, Watson, future: Google, Azure)
 - **NVIDIA NeMo FastConformer Support** - State-of-the-art accuracy with streaming capability
 - **Pure C++ Implementation** - No Python dependencies at runtime
 - **ONNX Runtime Integration** - Efficient inference on CPU and GPU
@@ -30,6 +31,7 @@ python3 test_working_input_again.py
 - **Streaming-Ready** - Designed for real-time audio processing
 - **SPL Operator Interface** - Easy integration with Streams applications
 - **2-Channel Audio Support** - Process stereo/telephony audio with channel separation
+- **Gateway Functionality** - Migrating IBM STT Gateway features for unified telephony support
 
 ## Quick Start
 
@@ -258,6 +260,7 @@ python impl/bin/export_model_ctc_patched.py  # Export model first
 
 ### Use in Streams Application
 
+#### Option 1: Direct NeMo Usage (Existing)
 ```spl
 use com.teracloud.streamsx.stt::*;
 
@@ -268,17 +271,63 @@ composite SpeechTranscription {
                 param filename: "speech.wav";
             }
         
-        stream<rstring text, boolean isFinal, float64 confidence> Result = 
-            OnnxSTT(Audio) {
+        stream<rstring transcription> Result = 
+            NeMoSTT(Audio) {
                 param
-                    encoderModel: "opt/models/fastconformer_nemo_export/ctc_model.onnx";
-                    vocabFile: "opt/models/fastconformer_nemo_export/tokens.txt";
-                    cmvnFile: "none";
-                    modelType: "NEMO_CTC";
-                    blankId: 1024;
+                    modelPath: "/path/to/model.onnx";
+                    tokensPath: "/path/to/tokens.txt";
             }
 }
 ```
+
+#### Option 2: UnifiedSTT (New - Multi-Backend Support)
+```spl
+use com.teracloud.streamsx.stt::*;
+
+composite MultiBackendTranscription {
+    graph
+        stream<UnifiedAudioInput> Audio = Custom(FileAudioSource()) {
+            // Convert to unified format
+        }
+        
+        stream<UnifiedTranscriptionOutput> Result = 
+            UnifiedSTT(Audio) {
+                param
+                    backend: "nemo";  // or "watson", "google", etc.
+                    modelPath: "/path/to/model.onnx";
+                    vocabPath: "/path/to/tokens.txt";
+                    fallbackBackend: "watson";  // Optional failover
+            }
+}
+```
+
+## UnifiedSTT: Multi-Backend Speech Recognition
+
+The toolkit now includes UnifiedSTT, a unified interface for multiple speech-to-text backends. This is part of an ongoing migration to incorporate IBM STT Gateway functionality.
+
+### Supported Backends
+- ✅ **NeMo** - Local ONNX models for high-performance, offline transcription
+- 🚧 **Watson** - IBM Watson Speech to Text (Phase 3 - In Development)
+- 📋 **Google** - Google Cloud Speech-to-Text (Future)
+- 📋 **Azure** - Azure Cognitive Services (Future)
+
+### Backend Adapter Architecture
+```
+UnifiedSTT Operator
+    ├── STTBackendFactory (selects backend)
+    └── STTBackendAdapter Interface
+        ├── NeMoSTTAdapter (uses NeMoCTCImpl)
+        ├── WatsonSTTAdapter (WebSocket-based)
+        └── Future adapters...
+```
+
+### Key Benefits
+- **Single Interface**: One operator for all backends
+- **Runtime Selection**: Switch backends without code changes
+- **Fallback Support**: Automatic failover to secondary backend
+- **Consistent Output**: Unified transcription schema across all backends
+
+See `doc/UNIFIED_STT_GUIDE.md` for detailed usage instructions.
 
 ## Supported Models
 
