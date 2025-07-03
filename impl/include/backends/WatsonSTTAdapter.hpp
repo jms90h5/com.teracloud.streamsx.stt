@@ -6,6 +6,7 @@
 #include <queue>
 #include <thread>
 #include <atomic>
+#include <mutex>
 
 namespace com {
 namespace teracloud {

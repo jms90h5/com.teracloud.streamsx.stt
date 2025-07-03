@@ -1,8 +1,10 @@
 #include "backends/NeMoSTTAdapter.hpp"
+#include "NeMoCTCImpl.hpp"
 #include <iostream>
 #include <sstream>
 #include <chrono>
 #include <cstring>
+#include <mutex>
 
 namespace com {
 namespace teracloud {
@@ -37,8 +39,13 @@ NeMoSTTAdapter::~NeMoSTTAdapter() {
 
 bool NeMoSTTAdapter::initialize(const BackendConfig& config) {
     try {
+        std::cerr << "NeMoSTTAdapter::initialize() called" << std::endl;
+        
         // Parse configuration
         config_.parseConfig(config);
+        
+        std::cerr << "NeMoSTTAdapter: modelPath = " << config_.modelPath << std::endl;
+        std::cerr << "NeMoSTTAdapter: vocabPath = " << config_.vocabPath << std::endl;
         
         // Validate required parameters
         if (config_.modelPath.empty()) {
@@ -51,25 +58,27 @@ bool NeMoSTTAdapter::initialize(const BackendConfig& config) {
             return false;
         }
         
-        // Create NeMo model instance
-        model_ = std::make_unique<NeMoCTCModel>();
+        // Create NeMoCTCImpl instance
+        std::cerr << "NeMoSTTAdapter: Creating NeMoCTC instance..." << std::endl;
+        model_ = std::make_unique<NeMoCTCImpl>();
         
-        // Initialize the model
-        bool success = model_->initialize(
-            config_.modelPath,
-            config_.vocabPath,
-            config_.cmvnFile,
-            "NEMO_CTC",  // modelType
-            config_.blankId,
-            config_.numThreads,
-            config_.provider
-        );
+        if (!model_) {
+            std::cerr << "NeMoSTTAdapter: Failed to create NeMoCTCImpl instance" << std::endl;
+            return false;
+        }
+        
+        std::cerr << "NeMoSTTAdapter: NeMoCTC instance created, initializing..." << std::endl;
+        
+        // Initialize the model with model path and vocab path
+        bool success = model_->initialize(config_.modelPath, config_.vocabPath);
         
         if (!success) {
             std::cerr << "NeMoSTTAdapter: Failed to initialize NeMo model" << std::endl;
             model_.reset();
             return false;
         }
+        
+        std::cerr << "NeMoSTTAdapter: Model initialized successfully" << std::endl;
         
         std::cout << "NeMoSTTAdapter: Successfully initialized with model: " 
                   << config_.modelPath << std::endl;
@@ -108,36 +117,61 @@ TranscriptionResult NeMoSTTAdapter::processAudio(
         }
         state_.currentTime = audio.timestamp;
         
-        // Preprocess audio if needed
-        std::vector<float> processedAudio = preprocessAudio(audio);
-        
-        if (processedAudio.empty()) {
+        // Validate audio format
+        if (audio.encoding != "pcm16") {
             result.hasError = true;
-            result.errorCode = "INVALID_AUDIO";
-            result.errorMessage = "Failed to preprocess audio";
+            result.errorCode = "INVALID_ENCODING";
+            result.errorMessage = "Only pcm16 encoding is supported";
             return result;
         }
         
-        // Process through NeMo model
-        bool isFinal = false;
-        auto transcription = model_->processAudioChunk(
-            processedAudio.data(),
-            processedAudio.size(),
-            isFinal
-        );
-        
-        // Update accumulated text if we got a result
-        if (!transcription.text.empty()) {
-            if (!state_.accumulatedText.empty()) {
-                state_.accumulatedText += " ";
-            }
-            state_.accumulatedText += transcription.text;
-            state_.totalConfidence += transcription.confidence;
-            state_.numSegments++;
+        if (audio.sampleRate != 16000) {
+            result.hasError = true;
+            result.errorCode = "INVALID_SAMPLE_RATE";
+            result.errorMessage = "Only 16000 Hz sample rate is supported";
+            return result;
         }
         
-        // Create result
-        result = createResult(transcription.text, transcription.confidence, false);
+        if (audio.channels != 1) {
+            result.hasError = true;
+            result.errorCode = "INVALID_CHANNELS";
+            result.errorMessage = "Only mono audio is supported";
+            return result;
+        }
+        
+        // Convert audio to float format as expected by NeMoCTCImpl
+        const int16_t* pcmData = static_cast<const int16_t*>(audio.data);
+        size_t numSamples = audio.size / sizeof(int16_t);
+        
+        // Debug: Log audio chunk details
+        std::cerr << "NeMoSTTAdapter::processAudio - numSamples=" << numSamples 
+                  << ", timestamp=" << audio.timestamp << std::endl;
+        
+        // Convert int16 to float and buffer the audio
+        for (size_t i = 0; i < numSamples; i++) {
+            audioBuffer_.push_back(pcmData[i] / 32768.0f);
+        }
+        
+        // For now, we'll transcribe on each chunk
+        // In a real streaming implementation, we'd buffer and transcribe at intervals
+        if (audioBuffer_.size() > 0) {
+            std::string transcription = model_->transcribe(audioBuffer_);
+            
+            // Debug: Log transcription result
+            std::cerr << "NeMoSTTAdapter::processAudio - transcription='" << transcription << "'" << std::endl;
+            
+            // Only update if we got new text
+            if (!transcription.empty() && transcription != state_.accumulatedText) {
+                state_.accumulatedText = transcription;
+                state_.totalConfidence = 0.95;  // NeMoCTCImpl doesn't provide confidence
+                state_.numSegments++;
+                std::cerr << "NeMoSTTAdapter::processAudio - accumulated text: '" 
+                          << state_.accumulatedText << "'" << std::endl;
+            }
+        }
+        
+        // Create result from current accumulated text
+        result = createResult(state_.accumulatedText, state_.totalConfidence, false);
         
         // NeMo doesn't support these features yet
         result.wordTimings.clear();
@@ -154,6 +188,8 @@ TranscriptionResult NeMoSTTAdapter::processAudio(
 }
 
 TranscriptionResult NeMoSTTAdapter::finalize() {
+    std::cerr << "NeMoSTTAdapter::finalize() called" << std::endl;
+    
     if (!model_) {
         TranscriptionResult result;
         result.hasError = true;
@@ -165,28 +201,31 @@ TranscriptionResult NeMoSTTAdapter::finalize() {
     try {
         std::lock_guard<std::mutex> lock(stateMutex_);
         
-        // Get final transcription from model
-        auto finalTranscription = model_->finalize();
-        
-        // Add to accumulated text if needed
-        if (!finalTranscription.text.empty()) {
-            if (!state_.accumulatedText.empty()) {
-                state_.accumulatedText += " ";
+        // Do a final transcription with all buffered audio
+        if (audioBuffer_.size() > 0) {
+            std::string finalTranscription = model_->transcribe(audioBuffer_);
+            if (!finalTranscription.empty()) {
+                state_.accumulatedText = finalTranscription;
+                state_.totalConfidence = 0.95;
             }
-            state_.accumulatedText += finalTranscription.text;
-            state_.totalConfidence += finalTranscription.confidence;
-            state_.numSegments++;
         }
+        
+        std::cerr << "NeMoSTTAdapter::finalize() - accumulated text: '" 
+                  << state_.accumulatedText << "', segments: " << state_.numSegments << std::endl;
         
         // Calculate average confidence
         double avgConfidence = state_.numSegments > 0 ? 
-            state_.totalConfidence / state_.numSegments : 0.0;
+            state_.totalConfidence / state_.numSegments : 0.95;
         
         // Create final result with complete text
         auto result = createResult(state_.accumulatedText, avgConfidence, true);
         
+        std::cerr << "NeMoSTTAdapter::finalize() - returning text: '" 
+                  << result.text << "'" << std::endl;
+        
         // Reset state for next transcription
         state_.reset();
+        audioBuffer_.clear();
         
         return result;
         
@@ -202,9 +241,7 @@ TranscriptionResult NeMoSTTAdapter::finalize() {
 void NeMoSTTAdapter::reset() {
     std::lock_guard<std::mutex> lock(stateMutex_);
     state_.reset();
-    if (model_) {
-        model_->reset();
-    }
+    // NeMoCTCImpl doesn't have a reset method - it's stateless
     audioBuffer_.clear();
 }
 
@@ -237,7 +274,7 @@ BackendCapabilities NeMoSTTAdapter::getCapabilities() const {
 }
 
 bool NeMoSTTAdapter::isHealthy() const {
-    return model_ && model_->isInitialized();
+    return model_ != nullptr;
 }
 
 std::map<std::string, std::string> NeMoSTTAdapter::getStatus() const {
@@ -265,42 +302,6 @@ void NeMoSTTAdapter::setLogLevel(const std::string& level) {
 }
 
 // Helper methods
-std::vector<float> NeMoSTTAdapter::preprocessAudio(const AudioChunk& audio) {
-    std::vector<float> result;
-    
-    // Check encoding
-    if (audio.encoding != "pcm16") {
-        std::cerr << "NeMoSTTAdapter: Unsupported encoding: " << audio.encoding 
-                  << " (only pcm16 supported)" << std::endl;
-        return result;
-    }
-    
-    // Check sample rate
-    if (audio.sampleRate != 16000) {
-        std::cerr << "NeMoSTTAdapter: Unsupported sample rate: " << audio.sampleRate 
-                  << " (only 16000 Hz supported)" << std::endl;
-        return result;
-    }
-    
-    // Check channels
-    if (audio.channels != 1) {
-        std::cerr << "NeMoSTTAdapter: Only mono audio supported, got " 
-                  << audio.channels << " channels" << std::endl;
-        return result;
-    }
-    
-    // Convert PCM16 to float
-    const int16_t* pcmData = static_cast<const int16_t*>(audio.data);
-    size_t numSamples = audio.size / sizeof(int16_t);
-    
-    result.reserve(numSamples);
-    for (size_t i = 0; i < numSamples; ++i) {
-        result.push_back(pcmData[i] / 32768.0f);
-    }
-    
-    return result;
-}
-
 TranscriptionResult NeMoSTTAdapter::createResult(
     const std::string& text,
     double confidence,

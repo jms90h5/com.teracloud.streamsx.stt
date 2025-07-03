@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <functional>
 
 namespace com {
 namespace teracloud {

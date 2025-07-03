@@ -47,6 +47,14 @@ std::unique_ptr<STTBackendAdapter> STTBackendFactory::createBackend(
     
     registerBuiltinBackends();
     
+    // Debug output
+    std::cerr << "STTBackendFactory: Requested backend type: '" << backendType << "'" << std::endl;
+    std::cerr << "STTBackendFactory: Available backends: ";
+    for (const auto& kv : s_backendRegistry) {
+        std::cerr << "'" << kv.first << "' ";
+    }
+    std::cerr << std::endl;
+    
     // Convert to lowercase for case-insensitive matching
     std::string lowerType = backendType;
     std::transform(lowerType.begin(), lowerType.end(), lowerType.begin(), ::tolower);
@@ -59,20 +67,33 @@ std::unique_ptr<STTBackendAdapter> STTBackendFactory::createBackend(
     
     try {
         // Create the backend
+        std::cerr << "STTBackendFactory: Creating backend instance..." << std::endl;
         auto backend = it->second(config);
         
+        if (!backend) {
+            std::cerr << "STTBackendFactory: Factory function returned nullptr" << std::endl;
+            return nullptr;
+        }
+        
+        std::cerr << "STTBackendFactory: Backend instance created, initializing..." << std::endl;
+        
         // Initialize it
-        if (backend && !backend->initialize(config)) {
+        if (!backend->initialize(config)) {
             std::cerr << "STTBackendFactory: Failed to initialize backend: " 
                       << backendType << std::endl;
             return nullptr;
         }
         
+        std::cerr << "STTBackendFactory: Backend initialized successfully" << std::endl;
         return backend;
         
     } catch (const std::exception& e) {
-        std::cerr << "STTBackendFactory: Error creating backend " << backendType 
+        std::cerr << "STTBackendFactory: Exception caught - Error creating backend " << backendType 
                   << ": " << e.what() << std::endl;
+        return nullptr;
+    } catch (...) {
+        std::cerr << "STTBackendFactory: Unknown exception caught while creating backend " 
+                  << backendType << std::endl;
         return nullptr;
     }
 }

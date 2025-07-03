@@ -1,6 +1,7 @@
 #include "backends/WatsonSTTAdapter.hpp"
 #include <iostream>
 #include <sstream>
+#include <mutex>
 
 namespace com {
 namespace teracloud {

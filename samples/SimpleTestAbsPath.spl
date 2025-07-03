@@ -1,0 +1,42 @@
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * Simple NeMo test with absolute path
+ */
+composite SimpleTestAbsPath {
+    graph
+        // Read audio from librispeech test file with absolute path
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "/home/streamsadmin/workspace/teracloud/toolkits/com.teracloud.streamsx.stt/samples/audio/librispeech_3sec.wav";
+                blockSize: 16384u;
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // Perform speech recognition using NeMo FastConformer
+        stream<rstring transcription> Transcription = NeMoSTT(AudioStream) {
+            param
+                modelPath: "/home/streamsadmin/workspace/teracloud/toolkits/com.teracloud.streamsx.stt/opt/models/fastconformer_ctc_export/model.onnx";
+                tokensPath: "/home/streamsadmin/workspace/teracloud/toolkits/com.teracloud.streamsx.stt/opt/models/fastconformer_ctc_export/tokens.txt";
+        }
+        
+        // Display results  
+        () as Display = Custom(Transcription) {
+            logic
+                onTuple Transcription: {
+                    printStringLn("=== TRANSCRIPTION RESULT ===");
+                    printStringLn("Text: '" + transcription + "'");
+                    
+                    // Check for expected content
+                    if (findFirst(lower(transcription), "first") >= 0 && 
+                        findFirst(lower(transcription), "great") >= 0) {
+                        printStringLn("✅ PASS: Found expected words 'first' and 'great'");
+                    } else {
+                        printStringLn("❌ FAIL: Expected words not found");
+                    }
+                    printStringLn("============================");
+                }
+        }
+}

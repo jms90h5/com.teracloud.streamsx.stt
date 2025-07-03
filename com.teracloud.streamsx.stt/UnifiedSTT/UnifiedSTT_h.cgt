@@ -59,6 +59,7 @@ private:
     
     // State management
     std::mutex processingMutex_;
+    bool initialized_;
     bool usesFallback_;
     uint64_t primaryFailures_;
     uint64_t fallbackAttempts_;

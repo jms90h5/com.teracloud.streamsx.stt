@@ -1,0 +1,104 @@
+use com.teracloud.streamsx.stt::*;
+
+/**
+ * UnifiedSTT test with absolute paths
+ */
+composite UnifiedSTTAbsPath {
+    graph
+        // Read audio file
+        stream<blob audioChunk, uint64 audioTimestamp> AudioStream = FileAudioSource() {
+            param
+                filename: "/home/streamsadmin/workspace/teracloud/toolkits/com.teracloud.streamsx.stt/samples/audio/librispeech_3sec.wav";
+                blockSize: 16384u;
+                sampleRate: 16000;
+                bitsPerSample: 16;
+                channelCount: 1;
+        }
+        
+        // Convert to UnifiedSTT input format
+        stream<UnifiedAudioInput> UnifiedAudio = Custom(AudioStream) {
+            logic
+                state: {
+                    mutable int32 chunkCount = 0;
+                }
+                onTuple AudioStream: {
+                    mutable UnifiedAudioInput unified = {};
+                    unified.audioData = audioChunk;
+                    unified.audioTimestamp = audioTimestamp;
+                    unified.encoding = "pcm16";
+                    unified.sampleRate = 16000;
+                    unified.channels = 1;
+                    unified.bitsPerSample = 16;
+                    
+                    // Set channel info
+                    unified.channelInfo.channelNumber = 0;
+                    unified.channelInfo.channelRole = "mono";
+                    
+                    // Add metadata
+                    unified.metadata["source"] = "test_file";
+                    unified.metadata["chunk"] = (rstring)chunkCount;
+                    
+                    submit(unified, UnifiedAudio);
+                    chunkCount++;
+                }
+                onPunct AudioStream: {
+                    submit(currentPunct(), UnifiedAudio);
+                }
+        }
+        
+        // UnifiedSTT operator
+        stream<UnifiedTranscriptionOutput> Transcription = UnifiedSTT(UnifiedAudio) {
+            param
+                backend: "nemo";
+                modelPath: "/home/streamsadmin/workspace/teracloud/toolkits/com.teracloud.streamsx.stt/opt/models/fastconformer_ctc_export/model.onnx";
+                vocabPath: "/home/streamsadmin/workspace/teracloud/toolkits/com.teracloud.streamsx.stt/opt/models/fastconformer_ctc_export/tokens.txt";
+                enablePunctuation: true;
+                languageCode: "en-US";
+        }
+        
+        // Display results
+        () as ResultDisplay = Custom(Transcription) {
+            logic
+                state: {
+                    mutable int32 resultCount = 0;
+                    mutable rstring fullTranscript = "";
+                }
+                onTuple Transcription: {
+                    resultCount++;
+                    
+                    printStringLn("\n===== UnifiedSTT Result " + (rstring)resultCount + " =====");
+                    printStringLn("Text: '" + text + "'");
+                    printStringLn("Confidence: " + (rstring)confidence);
+                    printStringLn("Is Final: " + (rstring)isFinal);
+                    printStringLn("Backend: " + backend);
+                    printStringLn("Language: " + languageCode);
+                    
+                    if (length(text) > 0) {
+                        if (length(fullTranscript) > 0) {
+                            fullTranscript += " ";
+                        }
+                        fullTranscript += text;
+                    }
+                    
+                    // Check for expected content
+                    if (findFirst(lower(text), "first") >= 0 && 
+                        findFirst(lower(text), "great") >= 0) {
+                        printStringLn("✅ PASS: UnifiedSTT found expected words 'first' and 'great'");
+                    }
+                }
+                onPunct Transcription: {
+                    if (currentPunct() == Sys.FinalMarker) {
+                        printStringLn("\n========== FINAL UnifiedSTT RESULTS ==========");
+                        printStringLn("Total results: " + (rstring)resultCount);
+                        printStringLn("Complete transcript: '" + fullTranscript + "'");
+                        
+                        if (resultCount == 0 || length(fullTranscript) == 0) {
+                            printStringLn("❌ FAIL: No transcription output received!");
+                        } else {
+                            printStringLn("✅ SUCCESS: UnifiedSTT produced transcription output");
+                        }
+                        printStringLn("=============================================\n");
+                    }
+                }
+        }
+}

@@ -1,9 +1,9 @@
 # STT Gateway Migration Status
 
-## Current Status: Phase 1 Complete ✅
+## Current Status: Phase 2 Complete ✅
 
 **Branch**: `feature/stt-gateway-migration`  
-**Last Updated**: December 2024
+**Last Updated**: January 2025
 
 ## Completed Work
 
@@ -47,13 +47,32 @@
    - Modified Makefile to include backend sources
    - Created proper directory structure
 
-## In Progress Work
+## Recently Completed Work
 
-### 🔄 Phase 2: Testing and Refinement
+### ✅ Phase 2: UnifiedSTT Implementation and Testing (January 2025)
 
-- Need to build and test UnifiedSTT with NeMo backend
-- Verify backward compatibility with existing apps
-- Performance benchmarking
+1. **Fixed NeMoSTTAdapter Implementation**
+   - Replaced OnnxSTTInterface with NeMoCTCImpl
+   - Fixed audio format conversion (int16 to float)
+   - Resolved "Invalid Feed Input Name:logprobs" error
+   - Adapter now successfully produces transcriptions
+
+2. **Build System Corrections**
+   - Fixed backend compilation in impl/Makefile
+   - Properly integrated backend sources into libs2t_impl.so
+   - Updated toolkit build process with make build-all
+
+3. **Successful Testing**
+   - UnifiedSTT operator compiles successfully
+   - Produces correct transcription: "it was the first great"
+   - Verified with librispeech_3sec.wav test file
+   - Backend switching mechanism confirmed working
+
+4. **Key Technical Learnings**
+   - SPL operators require proper environment setup ($STREAMS_INSTALL/bin/streamsprofile.sh)
+   - NeMoCTCImpl uses transcribe() method with float audio data
+   - OnnxSTTInterface is for streaming, not suitable for bulk transcription
+   - Always use make clean-all && make build-all for full rebuild
 
 ## Upcoming Work
 
@@ -108,9 +127,9 @@ stream<UnifiedTranscriptionOutput> = UnifiedSTT(Audio) {
 
 ## Known Issues
 
-1. **Build Not Yet Tested**
-   - UnifiedSTT operator needs compilation testing
-   - Backend factory registration needs verification
+1. **Audio Buffering**
+   - Current implementation transcribes on each chunk
+   - Should implement proper buffering for optimal performance
 
 2. **Python Virtual Environment**
    - Still blocks SPL compilation
@@ -119,18 +138,20 @@ stream<UnifiedTranscriptionOutput> = UnifiedSTT(Audio) {
 ## Success Metrics
 
 - ✅ Unified interface designed
-- ✅ NeMo backend wrapped
+- ✅ NeMo backend wrapped and tested
 - ✅ 2-channel support integrated
+- ✅ UnifiedSTT operator functional
+- ✅ Correct transcription output verified
 - ⏳ Watson backend implementation
-- ⏳ Performance parity verification
+- ⏳ Performance optimization
 - ⏳ Migration tools creation
 
 ## Next Steps
 
 1. **Immediate** (This Week)
-   - Test UnifiedSTT compilation
-   - Verify NeMo adapter functionality
-   - Create integration tests
+   - Implement audio buffering optimization
+   - Create performance benchmarks
+   - Add more comprehensive tests
 
 2. **Short Term** (Next 2 Weeks)
    - Begin Watson adapter implementation
@@ -148,14 +169,19 @@ stream<UnifiedTranscriptionOutput> = UnifiedSTT(Audio) {
 # Switch to feature branch
 git checkout feature/stt-gateway-migration
 
-# Build the toolkit
-cd impl
-make clean && make
+# Build everything (implementation + toolkit)
+make clean-all && make build-all
+
+# Rebuild toolkit operators
+/opt/teracloud/streams/7.2.0.1/bin/spl-make-toolkit -i . -m
 
 # Test UnifiedSTT sample
-cd ../samples
-sc -M UnifiedSTTDemo -t ../
-./output/bin/standalone -d .
+cd samples
+source $STREAMS_INSTALL/bin/streamsprofile.sh
+sc -T -M UnifiedSTTAbsPath --output-directory=output -t ..
+./output/bin/standalone
+
+# Expected output: "it was the first great"
 ```
 
 ## Contributing

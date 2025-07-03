@@ -2,10 +2,12 @@
 #define NEMO_STT_ADAPTER_HPP
 
 #include "STTBackendAdapter.hpp"
-#include "NeMoCTCModel.hpp"
 #include <memory>
 #include <vector>
 #include <mutex>
+
+// Forward declaration
+class NeMoCTCImpl;
 
 namespace com {
 namespace teracloud {
@@ -36,8 +38,8 @@ struct NeMoConfig : public BackendConfig {
  */
 class NeMoSTTAdapter : public STTBackendAdapter {
 private:
-    // Existing NeMo model implementation
-    std::unique_ptr<NeMoCTCModel> model_;
+    // NeMo CTC model implementation
+    std::unique_ptr<NeMoCTCImpl> model_;
     
     // Configuration
     NeMoConfig config_;
@@ -70,11 +72,10 @@ private:
     TranscriptionState state_;
     mutable std::mutex stateMutex_;
     
-    // Audio buffer for resampling if needed
+    // Audio buffer for buffering if needed
     std::vector<float> audioBuffer_;
     
     // Helper methods
-    std::vector<float> preprocessAudio(const AudioChunk& audio);
     TranscriptionResult createResult(const std::string& text, 
                                    double confidence,
                                    bool isFinal);
